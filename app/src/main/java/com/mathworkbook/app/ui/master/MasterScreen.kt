@@ -1,5 +1,6 @@
 package com.mathworkbook.app.ui.master
 
+import android.content.ActivityNotFoundException
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
@@ -57,10 +58,21 @@ fun MasterScreen(
     var showImport by remember { mutableStateOf(false) }
     var showExamCreate by remember { mutableStateOf(false) }
     var expandedAttemptId by remember { mutableStateOf<String?>(null) }
-    val zipPicker = rememberLauncherForActivityResult(
+    val zipDocumentPicker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument(),
         onResult = { uri -> uri?.let(viewModel::importWorkbookZip) }
     )
+    val zipContentPicker = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent(),
+        onResult = { uri -> uri?.let(viewModel::importWorkbookZip) }
+    )
+    val zipMimeTypes = remember {
+        arrayOf(
+            "application/zip",
+            "application/x-zip-compressed",
+            "application/octet-stream"
+        )
+    }
 
     Surface(modifier = modifier.fillMaxSize(), color = Color(0xFFF7F8FA)) {
         Column(
@@ -132,13 +144,15 @@ fun MasterScreen(
             onDismiss = { showImport = false },
             onPickZip = {
                 showImport = false
-                zipPicker.launch(
-                    arrayOf(
-                        "application/zip",
-                        "application/x-zip-compressed",
-                        "application/octet-stream"
-                    )
-                )
+                try {
+                    zipDocumentPicker.launch(zipMimeTypes)
+                } catch (_: ActivityNotFoundException) {
+                    try {
+                        zipContentPicker.launch("application/zip")
+                    } catch (_: ActivityNotFoundException) {
+                        viewModel.showMessage("ZIP 파일을 선택할 수 있는 파일 앱을 찾지 못했습니다.")
+                    }
+                }
             }
         )
     }

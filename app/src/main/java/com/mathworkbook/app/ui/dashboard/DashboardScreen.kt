@@ -1,7 +1,9 @@
 package com.mathworkbook.app.ui.dashboard
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -13,6 +15,8 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items as gridItems
 import androidx.compose.foundation.lazy.items as listItems
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.LinearProgressIndicator
@@ -22,6 +26,9 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -39,6 +46,7 @@ fun DashboardScreen(
     modifier: Modifier = Modifier
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    var workbookToDelete by remember { mutableStateOf<WorkbookProgressSummary?>(null) }
 
     Surface(modifier = modifier.fillMaxSize(), color = Color(0xFFF7F8FA)) {
         Column(
@@ -65,6 +73,12 @@ fun DashboardScreen(
                 }
             }
 
+            state.message?.let {
+                Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)) {
+                    Text(it, modifier = Modifier.padding(12.dp), color = MaterialTheme.colorScheme.onSecondaryContainer)
+                }
+            }
+
             if (state.selectedWorkbookId == null) {
                 LazyVerticalGrid(
                     columns = GridCells.Fixed(3),
@@ -76,7 +90,12 @@ fun DashboardScreen(
                         WorkbookCard(
                             summary = summary,
                             isMasterMode = isMasterMode,
-                            onClick = { viewModel.selectWorkbook(summary.workbook.workbookId) }
+                            onClick = { viewModel.selectWorkbook(summary.workbook.workbookId) },
+                            onLongClick = if (isMasterMode) {
+                                { workbookToDelete = summary }
+                            } else {
+                                null
+                            }
                         )
                     }
                 }
@@ -119,18 +138,50 @@ fun DashboardScreen(
             }
         }
     }
+
+    workbookToDelete?.let { summary ->
+        AlertDialog(
+            onDismissRequest = { workbookToDelete = null },
+            title = { Text("책 삭제") },
+            text = {
+                Text(
+                    "'${summary.workbook.title}' 책과 포함된 문제, 풀이 기록, 시험 기록을 삭제합니다. 삭제 후에는 되돌릴 수 없습니다."
+                )
+            },
+            dismissButton = {
+                OutlinedButton(onClick = { workbookToDelete = null }) {
+                    Text("취소")
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        viewModel.deleteWorkbook(summary.workbook)
+                        workbookToDelete = null
+                    }
+                ) {
+                    Text("삭제")
+                }
+            }
+        )
+    }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun WorkbookCard(
     summary: WorkbookProgressSummary,
     isMasterMode: Boolean,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    onLongClick: (() -> Unit)? = null
 ) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick),
+            .combinedClickable(
+                onClick = onClick,
+                onLongClick = onLongClick
+            ),
         colors = CardDefaults.cardColors(containerColor = Color.White)
     ) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {

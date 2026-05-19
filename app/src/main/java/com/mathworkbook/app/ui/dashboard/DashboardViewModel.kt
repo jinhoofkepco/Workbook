@@ -3,6 +3,7 @@ package com.mathworkbook.app.ui.dashboard
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import androidx.room.withTransaction
 import com.mathworkbook.app.core.AppContainer
 import com.mathworkbook.app.core.database.ChapterEntity
 import com.mathworkbook.app.core.database.ExamSessionEntity
@@ -11,6 +12,7 @@ import com.mathworkbook.app.core.database.PracticeAttemptEntity
 import com.mathworkbook.app.core.database.ProblemEntity
 import com.mathworkbook.app.core.database.WorkbookEntity
 import com.mathworkbook.app.core.domain.FinalStatus
+import com.mathworkbook.app.core.files.FileStorage
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
@@ -56,12 +58,14 @@ data class DashboardUiState(
     val chapterSummaries: List<ChapterProgressSummary> = emptyList(),
     val problemSummaries: List<ProblemProgressSummary> = emptyList(),
     val attempts: List<PracticeAttemptEntity> = emptyList(),
-    val examSessions: List<ExamSessionEntity> = emptyList()
+    val examSessions: List<ExamSessionEntity> = emptyList(),
+    val message: String? = null
 )
 
 class DashboardViewModel(
     private val container: AppContainer,
-    private val dao: MathDao
+    private val dao: MathDao,
+    private val fileStorage: FileStorage
 ) : ViewModel() {
     private val _state = MutableStateFlow(DashboardUiState())
     val state: StateFlow<DashboardUiState> = _state
@@ -120,10 +124,54 @@ class DashboardViewModel(
         }
     }
 
+    fun deleteWorkbook(workbook: WorkbookEntity) {
+        viewModelScope.launch {
+            runCatching {
+                container.database.withTransaction {
+                    deleteWorkbookContent(workbook.workbookId)
+                }
+                fileStorage.deleteWorkbookFiles(workbook.workbookId)
+                loadStaticData()
+                _state.update { current ->
+                    current.copy(
+                        selectedWorkbookId = current.selectedWorkbookId.takeIf { it != workbook.workbookId },
+                        selectedChapterId = null,
+                        problemSummaries = emptyList()
+                    )
+                }
+                rebuild()
+            }.onSuccess {
+                _state.update { it.copy(message = "'${workbook.title}' 책을 삭제했습니다.") }
+            }.onFailure { error ->
+                _state.update { it.copy(message = "책 삭제 실패: ${error.message}") }
+            }
+        }
+    }
+
     private suspend fun loadStaticData() {
         workbooks = dao.getWorkbooksOnce()
         chapters = workbooks.flatMap { dao.getChaptersOnce(it.workbookId) }
         problems = dao.getAllProblemsOnce()
+    }
+
+    private suspend fun deleteWorkbookContent(workbookId: String) {
+        dao.deleteAttemptLogsForWorkbook(workbookId)
+        dao.deleteReviewsForWorkbook(workbookId)
+        dao.deletePracticeAttemptsForWorkbook(workbookId)
+        dao.deleteExamNavigationLogsForWorkbook(workbookId)
+        dao.deleteExamAnswersForWorkbook(workbookId)
+        dao.deleteExamSessionsForWorkbook(workbookId)
+        dao.deleteExamsForWorkbook(workbookId)
+        dao.deleteGeneratedProblemsForWorkbook(workbookId)
+        dao.deleteProblemTemplatesForWorkbook(workbookId)
+        dao.deleteChoicesForWorkbook(workbookId)
+        dao.deleteAnswerRulesForWorkbook(workbookId)
+        dao.deleteAnswerFieldsForWorkbook(workbookId)
+        dao.deleteProblemSettingsForWorkbook(workbookId)
+        dao.deleteWorkbookSettings(workbookId)
+        dao.deleteProblemsForWorkbook(workbookId)
+        dao.deleteChaptersForWorkbook(workbookId)
+        dao.deleteWorkbook(workbookId)
     }
 
     private fun rebuild() {
@@ -214,6 +262,6 @@ class DashboardViewModel(
 class DashboardViewModelFactory(private val container: AppContainer) : ViewModelProvider.Factory {
     @Suppress("UNCHECKED_CAST")
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
-        return DashboardViewModel(container = container, dao = container.dao) as T
+        return DashboardViewModel(container = container, dao = container.dao, fileStorage = container.fileStorage) as T
     }
 }

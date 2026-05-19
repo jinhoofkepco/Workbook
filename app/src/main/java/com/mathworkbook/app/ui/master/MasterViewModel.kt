@@ -123,6 +123,10 @@ class MasterViewModel(
         }
     }
 
+    fun showMessage(message: String) {
+        _state.update { it.copy(message = message) }
+    }
+
     fun createExam(
         workbookId: String?,
         chapterId: String?,

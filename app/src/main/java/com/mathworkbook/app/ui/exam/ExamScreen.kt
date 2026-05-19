@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -24,6 +23,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -36,7 +36,7 @@ import com.mathworkbook.app.core.domain.AnswerFieldType
 import com.mathworkbook.app.core.domain.ProblemType
 import com.mathworkbook.app.ui.components.HandwritingCanvas
 import com.mathworkbook.app.ui.components.HandwritingState
-import com.mathworkbook.app.ui.components.MaskableProblemImage
+import com.mathworkbook.app.ui.components.ProblemWorksheetBackground
 import com.mathworkbook.app.ui.components.rememberHandwritingState
 
 @Composable
@@ -47,6 +47,10 @@ fun ExamScreen(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val handwritingState = rememberHandwritingState()
+
+    LaunchedEffect(state.currentProblem?.problemId) {
+        handwritingState.clear()
+    }
 
     Surface(modifier = modifier.fillMaxSize(), color = Color(0xFFF7F8FA)) {
         if (state.loading) {
@@ -97,26 +101,16 @@ private fun TakingScreen(
                 }
             }
 
-            Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color.White)) {
-                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text(text = state.currentProblem?.questionText.orEmpty(), style = MaterialTheme.typography.headlineSmall)
-                    if (!state.currentProblem?.imagePath.isNullOrBlank()) {
-                        MaskableProblemImage(
-                            imagePath = state.currentProblem?.imagePath,
-                            maskOverlayJson = state.currentProblem?.maskOverlayJson,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(260.dp)
-                        )
-                    }
-                }
-            }
             Text("풀이 과정", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
             HandwritingCanvas(
                 state = handwritingState,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .weight(1f)
+                    .weight(1f),
+                contentHeight = 1320.dp,
+                backgroundContent = {
+                    ProblemWorksheetBackground(problem = state.currentProblem)
+                }
             )
         }
 

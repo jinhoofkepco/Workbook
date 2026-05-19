@@ -20,6 +20,11 @@ class FileStorage(private val context: Context) {
 
     fun importedAssetsDir(workbookId: String): File = File(workbookDir(workbookId), "imported").also { it.mkdirs() }
 
+    fun deleteWorkbookFiles(workbookId: String): Boolean {
+        val dir = File(root, "workbooks/$workbookId")
+        return !dir.exists() || dir.deleteRecursively()
+    }
+
     fun solutionDir(studentId: String, attemptOrSessionId: String): File {
         return File(root, "students/$studentId/$attemptOrSessionId").also { it.mkdirs() }
     }

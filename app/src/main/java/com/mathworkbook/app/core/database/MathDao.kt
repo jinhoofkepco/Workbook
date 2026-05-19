@@ -78,6 +78,57 @@ interface MathDao {
     @Query("SELECT * FROM WorkbookEntity ORDER BY createdAt DESC")
     suspend fun getWorkbooksOnce(): List<WorkbookEntity>
 
+    @Query("DELETE FROM AttemptInputLogEntity WHERE attemptId IN (SELECT attemptId FROM PracticeAttemptEntity WHERE workbookId = :workbookId)")
+    suspend fun deleteAttemptLogsForWorkbook(workbookId: String)
+
+    @Query("DELETE FROM ReviewEntity WHERE problemId IN (SELECT problemId FROM ProblemEntity WHERE workbookId = :workbookId) OR attemptId IN (SELECT attemptId FROM PracticeAttemptEntity WHERE workbookId = :workbookId)")
+    suspend fun deleteReviewsForWorkbook(workbookId: String)
+
+    @Query("DELETE FROM PracticeAttemptEntity WHERE workbookId = :workbookId")
+    suspend fun deletePracticeAttemptsForWorkbook(workbookId: String)
+
+    @Query("DELETE FROM ExamNavigationLogEntity WHERE problemId IN (SELECT problemId FROM ProblemEntity WHERE workbookId = :workbookId) OR examSessionId IN (SELECT examSessionId FROM ExamSessionEntity WHERE examId IN (SELECT examId FROM ExamEntity WHERE workbookId = :workbookId))")
+    suspend fun deleteExamNavigationLogsForWorkbook(workbookId: String)
+
+    @Query("DELETE FROM ExamAnswerEntity WHERE problemId IN (SELECT problemId FROM ProblemEntity WHERE workbookId = :workbookId) OR examSessionId IN (SELECT examSessionId FROM ExamSessionEntity WHERE examId IN (SELECT examId FROM ExamEntity WHERE workbookId = :workbookId))")
+    suspend fun deleteExamAnswersForWorkbook(workbookId: String)
+
+    @Query("DELETE FROM ExamSessionEntity WHERE examId IN (SELECT examId FROM ExamEntity WHERE workbookId = :workbookId)")
+    suspend fun deleteExamSessionsForWorkbook(workbookId: String)
+
+    @Query("DELETE FROM ExamEntity WHERE workbookId = :workbookId")
+    suspend fun deleteExamsForWorkbook(workbookId: String)
+
+    @Query("DELETE FROM GeneratedProblemEntity WHERE sourceProblemId IN (SELECT problemId FROM ProblemEntity WHERE workbookId = :workbookId)")
+    suspend fun deleteGeneratedProblemsForWorkbook(workbookId: String)
+
+    @Query("DELETE FROM ProblemTemplateEntity WHERE problemId IN (SELECT problemId FROM ProblemEntity WHERE workbookId = :workbookId)")
+    suspend fun deleteProblemTemplatesForWorkbook(workbookId: String)
+
+    @Query("DELETE FROM ChoiceEntity WHERE problemId IN (SELECT problemId FROM ProblemEntity WHERE workbookId = :workbookId)")
+    suspend fun deleteChoicesForWorkbook(workbookId: String)
+
+    @Query("DELETE FROM AnswerRuleEntity WHERE problemId IN (SELECT problemId FROM ProblemEntity WHERE workbookId = :workbookId)")
+    suspend fun deleteAnswerRulesForWorkbook(workbookId: String)
+
+    @Query("DELETE FROM AnswerFieldEntity WHERE problemId IN (SELECT problemId FROM ProblemEntity WHERE workbookId = :workbookId)")
+    suspend fun deleteAnswerFieldsForWorkbook(workbookId: String)
+
+    @Query("DELETE FROM ProblemSettingsEntity WHERE problemId IN (SELECT problemId FROM ProblemEntity WHERE workbookId = :workbookId)")
+    suspend fun deleteProblemSettingsForWorkbook(workbookId: String)
+
+    @Query("DELETE FROM WorkbookSettingsEntity WHERE workbookId = :workbookId")
+    suspend fun deleteWorkbookSettings(workbookId: String)
+
+    @Query("DELETE FROM ProblemEntity WHERE workbookId = :workbookId")
+    suspend fun deleteProblemsForWorkbook(workbookId: String)
+
+    @Query("DELETE FROM ChapterEntity WHERE workbookId = :workbookId")
+    suspend fun deleteChaptersForWorkbook(workbookId: String)
+
+    @Query("DELETE FROM WorkbookEntity WHERE workbookId = :workbookId")
+    suspend fun deleteWorkbook(workbookId: String)
+
     @Query("SELECT * FROM ChapterEntity WHERE workbookId = :workbookId ORDER BY orderIndex")
     fun observeChapters(workbookId: String): Flow<List<ChapterEntity>>
 

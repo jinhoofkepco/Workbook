@@ -49,6 +49,7 @@ import com.mathworkbook.app.core.domain.ProblemType
 import com.mathworkbook.app.ui.components.SolutionVectorPreview
 import com.mathworkbook.app.ui.components.HandwritingCanvas
 import com.mathworkbook.app.ui.components.MaskableProblemImage
+import com.mathworkbook.app.ui.components.ProblemWorksheetBackground
 import com.mathworkbook.app.ui.components.rememberHandwritingState
 import org.json.JSONObject
 import kotlin.math.min
@@ -111,7 +112,11 @@ fun PracticeScreen(
                     handwriting = {
                         HandwritingCanvas(
                             state = handwritingState,
-                            modifier = Modifier.fillMaxSize()
+                            modifier = Modifier.fillMaxSize(),
+                            contentHeight = 1320.dp,
+                            backgroundContent = {
+                                ProblemWorksheetBackground(problem = state.currentProblem)
+                            }
                         )
                     }
                 )
@@ -239,17 +244,19 @@ private fun ProblemSolvingScreen(
             )
         }
 
-        ProblemCard(
-            state = state,
-            modifier = Modifier
-                .fillMaxWidth()
-                .weight(0.35f)
-        )
+        if (isMasterMode) {
+            ProblemCard(
+                state = state,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(0.35f)
+            )
+        }
 
         Card(
             modifier = Modifier
                 .fillMaxWidth()
-                .weight(0.65f),
+                .weight(if (isMasterMode) 0.65f else 1f),
             colors = CardDefaults.cardColors(containerColor = Color.White)
         ) {
             Column(
@@ -268,6 +275,9 @@ private fun ProblemSolvingScreen(
                         SolutionVectorPreview(path = state.latestAttempt?.solutionImagePath, modifier = Modifier.fillMaxSize())
                     } else {
                         handwriting()
+                        if (state.showCorrectMark) {
+                            CorrectCircleOverlay()
+                        }
                     }
                 }
                 if (isMasterMode) {
