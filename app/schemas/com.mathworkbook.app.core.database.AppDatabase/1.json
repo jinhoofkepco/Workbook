@@ -1,0 +1,1500 @@
+{
+  "formatVersion": 1,
+  "database": {
+    "version": 1,
+    "identityHash": "4e081296931df0b1259b176548e5a946",
+    "entities": [
+      {
+        "tableName": "WorkbookEntity",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`workbookId` TEXT NOT NULL, `title` TEXT NOT NULL, `description` TEXT NOT NULL, `grade` TEXT NOT NULL, `subject` TEXT NOT NULL, `createdAt` INTEGER NOT NULL, `updatedAt` INTEGER NOT NULL, `version` INTEGER NOT NULL, PRIMARY KEY(`workbookId`))",
+        "fields": [
+          {
+            "fieldPath": "workbookId",
+            "columnName": "workbookId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "title",
+            "columnName": "title",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "description",
+            "columnName": "description",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "grade",
+            "columnName": "grade",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "subject",
+            "columnName": "subject",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "createdAt",
+            "columnName": "createdAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "updatedAt",
+            "columnName": "updatedAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "version",
+            "columnName": "version",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "workbookId"
+          ]
+        },
+        "indices": [],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "ChapterEntity",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`chapterId` TEXT NOT NULL, `workbookId` TEXT NOT NULL, `title` TEXT NOT NULL, `orderIndex` INTEGER NOT NULL, PRIMARY KEY(`chapterId`))",
+        "fields": [
+          {
+            "fieldPath": "chapterId",
+            "columnName": "chapterId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "workbookId",
+            "columnName": "workbookId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "title",
+            "columnName": "title",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "orderIndex",
+            "columnName": "orderIndex",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "chapterId"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_ChapterEntity_workbookId",
+            "unique": false,
+            "columnNames": [
+              "workbookId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_ChapterEntity_workbookId` ON `${TABLE_NAME}` (`workbookId`)"
+          }
+        ],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "ProblemEntity",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`problemId` TEXT NOT NULL, `workbookId` TEXT NOT NULL, `chapterId` TEXT NOT NULL, `problemType` TEXT NOT NULL, `questionText` TEXT, `questionLatex` TEXT, `imagePath` TEXT, `sourcePageImagePath` TEXT, `imageCropRectJson` TEXT, `maskOverlayJson` TEXT, `difficulty` INTEGER, `orderIndex` INTEGER NOT NULL, `hintText` TEXT, `hasGenerationTemplate` INTEGER NOT NULL, `createdAt` INTEGER NOT NULL, `updatedAt` INTEGER NOT NULL, PRIMARY KEY(`problemId`))",
+        "fields": [
+          {
+            "fieldPath": "problemId",
+            "columnName": "problemId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "workbookId",
+            "columnName": "workbookId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "chapterId",
+            "columnName": "chapterId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "problemType",
+            "columnName": "problemType",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "questionText",
+            "columnName": "questionText",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "questionLatex",
+            "columnName": "questionLatex",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "imagePath",
+            "columnName": "imagePath",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "sourcePageImagePath",
+            "columnName": "sourcePageImagePath",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "imageCropRectJson",
+            "columnName": "imageCropRectJson",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "maskOverlayJson",
+            "columnName": "maskOverlayJson",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "difficulty",
+            "columnName": "difficulty",
+            "affinity": "INTEGER",
+            "notNull": false
+          },
+          {
+            "fieldPath": "orderIndex",
+            "columnName": "orderIndex",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "hintText",
+            "columnName": "hintText",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "hasGenerationTemplate",
+            "columnName": "hasGenerationTemplate",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "createdAt",
+            "columnName": "createdAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "updatedAt",
+            "columnName": "updatedAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "problemId"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_ProblemEntity_workbookId",
+            "unique": false,
+            "columnNames": [
+              "workbookId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_ProblemEntity_workbookId` ON `${TABLE_NAME}` (`workbookId`)"
+          },
+          {
+            "name": "index_ProblemEntity_chapterId",
+            "unique": false,
+            "columnNames": [
+              "chapterId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_ProblemEntity_chapterId` ON `${TABLE_NAME}` (`chapterId`)"
+          }
+        ],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "AnswerFieldEntity",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`answerFieldId` TEXT NOT NULL, `problemId` TEXT NOT NULL, `label` TEXT NOT NULL, `fieldType` TEXT NOT NULL, `orderIndex` INTEGER NOT NULL, `positionJson` TEXT, `required` INTEGER NOT NULL, PRIMARY KEY(`answerFieldId`))",
+        "fields": [
+          {
+            "fieldPath": "answerFieldId",
+            "columnName": "answerFieldId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "problemId",
+            "columnName": "problemId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "label",
+            "columnName": "label",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "fieldType",
+            "columnName": "fieldType",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "orderIndex",
+            "columnName": "orderIndex",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "positionJson",
+            "columnName": "positionJson",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "required",
+            "columnName": "required",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "answerFieldId"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_AnswerFieldEntity_problemId",
+            "unique": false,
+            "columnNames": [
+              "problemId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_AnswerFieldEntity_problemId` ON `${TABLE_NAME}` (`problemId`)"
+          }
+        ],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "AnswerRuleEntity",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`answerRuleId` TEXT NOT NULL, `problemId` TEXT NOT NULL, `answerFieldId` TEXT, `answerType` TEXT NOT NULL, `correctAnswerRaw` TEXT NOT NULL, `normalizedAnswer` TEXT NOT NULL, `allowEquivalentFraction` INTEGER NOT NULL, `requireSimplifiedFraction` INTEGER NOT NULL, `decimalTolerance` REAL, `allowMultipleAnswers` INTEGER NOT NULL, `acceptedAnswersJson` TEXT, `unitType` TEXT, `manualGradingRequired` INTEGER NOT NULL, PRIMARY KEY(`answerRuleId`))",
+        "fields": [
+          {
+            "fieldPath": "answerRuleId",
+            "columnName": "answerRuleId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "problemId",
+            "columnName": "problemId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "answerFieldId",
+            "columnName": "answerFieldId",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "answerType",
+            "columnName": "answerType",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "correctAnswerRaw",
+            "columnName": "correctAnswerRaw",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "normalizedAnswer",
+            "columnName": "normalizedAnswer",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "allowEquivalentFraction",
+            "columnName": "allowEquivalentFraction",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "requireSimplifiedFraction",
+            "columnName": "requireSimplifiedFraction",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "decimalTolerance",
+            "columnName": "decimalTolerance",
+            "affinity": "REAL",
+            "notNull": false
+          },
+          {
+            "fieldPath": "allowMultipleAnswers",
+            "columnName": "allowMultipleAnswers",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "acceptedAnswersJson",
+            "columnName": "acceptedAnswersJson",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "unitType",
+            "columnName": "unitType",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "manualGradingRequired",
+            "columnName": "manualGradingRequired",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "answerRuleId"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_AnswerRuleEntity_problemId",
+            "unique": false,
+            "columnNames": [
+              "problemId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_AnswerRuleEntity_problemId` ON `${TABLE_NAME}` (`problemId`)"
+          },
+          {
+            "name": "index_AnswerRuleEntity_answerFieldId",
+            "unique": false,
+            "columnNames": [
+              "answerFieldId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_AnswerRuleEntity_answerFieldId` ON `${TABLE_NAME}` (`answerFieldId`)"
+          }
+        ],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "ChoiceEntity",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`choiceId` TEXT NOT NULL, `problemId` TEXT NOT NULL, `choiceText` TEXT NOT NULL, `choiceValue` TEXT NOT NULL, `isCorrect` INTEGER NOT NULL, `orderIndex` INTEGER NOT NULL, PRIMARY KEY(`choiceId`))",
+        "fields": [
+          {
+            "fieldPath": "choiceId",
+            "columnName": "choiceId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "problemId",
+            "columnName": "problemId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "choiceText",
+            "columnName": "choiceText",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "choiceValue",
+            "columnName": "choiceValue",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isCorrect",
+            "columnName": "isCorrect",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "orderIndex",
+            "columnName": "orderIndex",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "choiceId"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_ChoiceEntity_problemId",
+            "unique": false,
+            "columnNames": [
+              "problemId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_ChoiceEntity_problemId` ON `${TABLE_NAME}` (`problemId`)"
+          }
+        ],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "ProblemTemplateEntity",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`templateId` TEXT NOT NULL, `problemId` TEXT NOT NULL, `templateText` TEXT NOT NULL, `templateLatex` TEXT, `variableRulesJson` TEXT NOT NULL, `answerFormulaJson` TEXT NOT NULL, `validationRulesJson` TEXT, `enabled` INTEGER NOT NULL, `createdAt` INTEGER NOT NULL, `updatedAt` INTEGER NOT NULL, PRIMARY KEY(`templateId`))",
+        "fields": [
+          {
+            "fieldPath": "templateId",
+            "columnName": "templateId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "problemId",
+            "columnName": "problemId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "templateText",
+            "columnName": "templateText",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "templateLatex",
+            "columnName": "templateLatex",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "variableRulesJson",
+            "columnName": "variableRulesJson",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "answerFormulaJson",
+            "columnName": "answerFormulaJson",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "validationRulesJson",
+            "columnName": "validationRulesJson",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "enabled",
+            "columnName": "enabled",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "createdAt",
+            "columnName": "createdAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "updatedAt",
+            "columnName": "updatedAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "templateId"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_ProblemTemplateEntity_problemId",
+            "unique": false,
+            "columnNames": [
+              "problemId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_ProblemTemplateEntity_problemId` ON `${TABLE_NAME}` (`problemId`)"
+          }
+        ],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "GeneratedProblemEntity",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`generatedProblemId` TEXT NOT NULL, `sourceProblemId` TEXT NOT NULL, `studentId` TEXT NOT NULL, `generatedQuestionText` TEXT NOT NULL, `generatedQuestionLatex` TEXT, `generatedAnswerRawJson` TEXT NOT NULL, `generatedVariablesJson` TEXT NOT NULL, `reason` TEXT NOT NULL, `difficultyLevel` INTEGER, `createdAt` INTEGER NOT NULL, PRIMARY KEY(`generatedProblemId`))",
+        "fields": [
+          {
+            "fieldPath": "generatedProblemId",
+            "columnName": "generatedProblemId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sourceProblemId",
+            "columnName": "sourceProblemId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "studentId",
+            "columnName": "studentId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "generatedQuestionText",
+            "columnName": "generatedQuestionText",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "generatedQuestionLatex",
+            "columnName": "generatedQuestionLatex",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "generatedAnswerRawJson",
+            "columnName": "generatedAnswerRawJson",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "generatedVariablesJson",
+            "columnName": "generatedVariablesJson",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "reason",
+            "columnName": "reason",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "difficultyLevel",
+            "columnName": "difficultyLevel",
+            "affinity": "INTEGER",
+            "notNull": false
+          },
+          {
+            "fieldPath": "createdAt",
+            "columnName": "createdAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "generatedProblemId"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_GeneratedProblemEntity_sourceProblemId",
+            "unique": false,
+            "columnNames": [
+              "sourceProblemId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_GeneratedProblemEntity_sourceProblemId` ON `${TABLE_NAME}` (`sourceProblemId`)"
+          },
+          {
+            "name": "index_GeneratedProblemEntity_studentId",
+            "unique": false,
+            "columnNames": [
+              "studentId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_GeneratedProblemEntity_studentId` ON `${TABLE_NAME}` (`studentId`)"
+          }
+        ],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "StudentEntity",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`studentId` TEXT NOT NULL, `name` TEXT NOT NULL, PRIMARY KEY(`studentId`))",
+        "fields": [
+          {
+            "fieldPath": "studentId",
+            "columnName": "studentId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "studentId"
+          ]
+        },
+        "indices": [],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "PracticeAttemptEntity",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`attemptId` TEXT NOT NULL, `studentId` TEXT NOT NULL, `problemId` TEXT NOT NULL, `generatedProblemId` TEXT, `workbookId` TEXT NOT NULL, `chapterId` TEXT NOT NULL, `attemptNumber` INTEGER NOT NULL, `finalStatus` TEXT NOT NULL, `isCorrect` INTEGER, `inputTryCount` INTEGER NOT NULL, `maxInputTryCount` INTEGER NOT NULL, `maxAttemptsReached` INTEGER NOT NULL, `movedToNextByLimit` INTEGER NOT NULL, `hintUsed` INTEGER NOT NULL, `startedAt` INTEGER NOT NULL, `submittedAt` INTEGER, `elapsedSeconds` INTEGER NOT NULL, `solutionImagePath` TEXT, `reviewerComment` TEXT, `manualReviewStatus` TEXT, PRIMARY KEY(`attemptId`))",
+        "fields": [
+          {
+            "fieldPath": "attemptId",
+            "columnName": "attemptId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "studentId",
+            "columnName": "studentId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "problemId",
+            "columnName": "problemId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "generatedProblemId",
+            "columnName": "generatedProblemId",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "workbookId",
+            "columnName": "workbookId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "chapterId",
+            "columnName": "chapterId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "attemptNumber",
+            "columnName": "attemptNumber",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "finalStatus",
+            "columnName": "finalStatus",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isCorrect",
+            "columnName": "isCorrect",
+            "affinity": "INTEGER",
+            "notNull": false
+          },
+          {
+            "fieldPath": "inputTryCount",
+            "columnName": "inputTryCount",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "maxInputTryCount",
+            "columnName": "maxInputTryCount",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "maxAttemptsReached",
+            "columnName": "maxAttemptsReached",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "movedToNextByLimit",
+            "columnName": "movedToNextByLimit",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "hintUsed",
+            "columnName": "hintUsed",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "startedAt",
+            "columnName": "startedAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "submittedAt",
+            "columnName": "submittedAt",
+            "affinity": "INTEGER",
+            "notNull": false
+          },
+          {
+            "fieldPath": "elapsedSeconds",
+            "columnName": "elapsedSeconds",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "solutionImagePath",
+            "columnName": "solutionImagePath",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "reviewerComment",
+            "columnName": "reviewerComment",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "manualReviewStatus",
+            "columnName": "manualReviewStatus",
+            "affinity": "TEXT",
+            "notNull": false
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "attemptId"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_PracticeAttemptEntity_studentId",
+            "unique": false,
+            "columnNames": [
+              "studentId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_PracticeAttemptEntity_studentId` ON `${TABLE_NAME}` (`studentId`)"
+          },
+          {
+            "name": "index_PracticeAttemptEntity_problemId",
+            "unique": false,
+            "columnNames": [
+              "problemId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_PracticeAttemptEntity_problemId` ON `${TABLE_NAME}` (`problemId`)"
+          },
+          {
+            "name": "index_PracticeAttemptEntity_generatedProblemId",
+            "unique": false,
+            "columnNames": [
+              "generatedProblemId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_PracticeAttemptEntity_generatedProblemId` ON `${TABLE_NAME}` (`generatedProblemId`)"
+          }
+        ],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "AttemptInputLogEntity",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`inputLogId` TEXT NOT NULL, `attemptId` TEXT NOT NULL, `answerFieldId` TEXT, `tryNumber` INTEGER NOT NULL, `submittedAnswerRaw` TEXT NOT NULL, `normalizedSubmittedAnswer` TEXT NOT NULL, `isCorrect` INTEGER NOT NULL, `submittedAt` INTEGER NOT NULL, PRIMARY KEY(`inputLogId`))",
+        "fields": [
+          {
+            "fieldPath": "inputLogId",
+            "columnName": "inputLogId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "attemptId",
+            "columnName": "attemptId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "answerFieldId",
+            "columnName": "answerFieldId",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "tryNumber",
+            "columnName": "tryNumber",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "submittedAnswerRaw",
+            "columnName": "submittedAnswerRaw",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "normalizedSubmittedAnswer",
+            "columnName": "normalizedSubmittedAnswer",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isCorrect",
+            "columnName": "isCorrect",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "submittedAt",
+            "columnName": "submittedAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "inputLogId"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_AttemptInputLogEntity_attemptId",
+            "unique": false,
+            "columnNames": [
+              "attemptId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_AttemptInputLogEntity_attemptId` ON `${TABLE_NAME}` (`attemptId`)"
+          },
+          {
+            "name": "index_AttemptInputLogEntity_answerFieldId",
+            "unique": false,
+            "columnNames": [
+              "answerFieldId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_AttemptInputLogEntity_answerFieldId` ON `${TABLE_NAME}` (`answerFieldId`)"
+          }
+        ],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "ExamEntity",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`examId` TEXT NOT NULL, `title` TEXT NOT NULL, `workbookId` TEXT NOT NULL, `chapterIdsJson` TEXT NOT NULL, `problemIdsJson` TEXT NOT NULL, `timeLimitSeconds` INTEGER, `createdAt` INTEGER NOT NULL, `updatedAt` INTEGER NOT NULL, PRIMARY KEY(`examId`))",
+        "fields": [
+          {
+            "fieldPath": "examId",
+            "columnName": "examId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "title",
+            "columnName": "title",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "workbookId",
+            "columnName": "workbookId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "chapterIdsJson",
+            "columnName": "chapterIdsJson",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "problemIdsJson",
+            "columnName": "problemIdsJson",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "timeLimitSeconds",
+            "columnName": "timeLimitSeconds",
+            "affinity": "INTEGER",
+            "notNull": false
+          },
+          {
+            "fieldPath": "createdAt",
+            "columnName": "createdAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "updatedAt",
+            "columnName": "updatedAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "examId"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_ExamEntity_workbookId",
+            "unique": false,
+            "columnNames": [
+              "workbookId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_ExamEntity_workbookId` ON `${TABLE_NAME}` (`workbookId`)"
+          }
+        ],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "ExamSessionEntity",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`examSessionId` TEXT NOT NULL, `examId` TEXT NOT NULL, `studentId` TEXT NOT NULL, `startedAt` INTEGER NOT NULL, `submittedAt` INTEGER, `status` TEXT NOT NULL, `totalProblemCount` INTEGER NOT NULL, `correctCount` INTEGER NOT NULL, `wrongCount` INTEGER NOT NULL, `blankCount` INTEGER NOT NULL, `score` REAL NOT NULL, `reviewCompleted` INTEGER NOT NULL, PRIMARY KEY(`examSessionId`))",
+        "fields": [
+          {
+            "fieldPath": "examSessionId",
+            "columnName": "examSessionId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "examId",
+            "columnName": "examId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "studentId",
+            "columnName": "studentId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "startedAt",
+            "columnName": "startedAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "submittedAt",
+            "columnName": "submittedAt",
+            "affinity": "INTEGER",
+            "notNull": false
+          },
+          {
+            "fieldPath": "status",
+            "columnName": "status",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "totalProblemCount",
+            "columnName": "totalProblemCount",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "correctCount",
+            "columnName": "correctCount",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "wrongCount",
+            "columnName": "wrongCount",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "blankCount",
+            "columnName": "blankCount",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "score",
+            "columnName": "score",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "reviewCompleted",
+            "columnName": "reviewCompleted",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "examSessionId"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_ExamSessionEntity_examId",
+            "unique": false,
+            "columnNames": [
+              "examId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_ExamSessionEntity_examId` ON `${TABLE_NAME}` (`examId`)"
+          },
+          {
+            "name": "index_ExamSessionEntity_studentId",
+            "unique": false,
+            "columnNames": [
+              "studentId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_ExamSessionEntity_studentId` ON `${TABLE_NAME}` (`studentId`)"
+          }
+        ],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "ExamAnswerEntity",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`examAnswerId` TEXT NOT NULL, `examSessionId` TEXT NOT NULL, `problemId` TEXT NOT NULL, `answerFieldId` TEXT, `submittedAnswerRaw` TEXT, `normalizedSubmittedAnswer` TEXT, `isCorrect` INTEGER, `gradingStatus` TEXT NOT NULL, `lastEditedAt` INTEGER NOT NULL, `solutionImagePath` TEXT, PRIMARY KEY(`examAnswerId`))",
+        "fields": [
+          {
+            "fieldPath": "examAnswerId",
+            "columnName": "examAnswerId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "examSessionId",
+            "columnName": "examSessionId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "problemId",
+            "columnName": "problemId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "answerFieldId",
+            "columnName": "answerFieldId",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "submittedAnswerRaw",
+            "columnName": "submittedAnswerRaw",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "normalizedSubmittedAnswer",
+            "columnName": "normalizedSubmittedAnswer",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "isCorrect",
+            "columnName": "isCorrect",
+            "affinity": "INTEGER",
+            "notNull": false
+          },
+          {
+            "fieldPath": "gradingStatus",
+            "columnName": "gradingStatus",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lastEditedAt",
+            "columnName": "lastEditedAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "solutionImagePath",
+            "columnName": "solutionImagePath",
+            "affinity": "TEXT",
+            "notNull": false
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "examAnswerId"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_ExamAnswerEntity_examSessionId",
+            "unique": false,
+            "columnNames": [
+              "examSessionId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_ExamAnswerEntity_examSessionId` ON `${TABLE_NAME}` (`examSessionId`)"
+          },
+          {
+            "name": "index_ExamAnswerEntity_problemId",
+            "unique": false,
+            "columnNames": [
+              "problemId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_ExamAnswerEntity_problemId` ON `${TABLE_NAME}` (`problemId`)"
+          },
+          {
+            "name": "index_ExamAnswerEntity_answerFieldId",
+            "unique": false,
+            "columnNames": [
+              "answerFieldId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_ExamAnswerEntity_answerFieldId` ON `${TABLE_NAME}` (`answerFieldId`)"
+          }
+        ],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "ExamNavigationLogEntity",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`logId` TEXT NOT NULL, `examSessionId` TEXT NOT NULL, `problemId` TEXT NOT NULL, `enteredAt` INTEGER NOT NULL, `leftAt` INTEGER, PRIMARY KEY(`logId`))",
+        "fields": [
+          {
+            "fieldPath": "logId",
+            "columnName": "logId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "examSessionId",
+            "columnName": "examSessionId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "problemId",
+            "columnName": "problemId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "enteredAt",
+            "columnName": "enteredAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "leftAt",
+            "columnName": "leftAt",
+            "affinity": "INTEGER",
+            "notNull": false
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "logId"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_ExamNavigationLogEntity_examSessionId",
+            "unique": false,
+            "columnNames": [
+              "examSessionId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_ExamNavigationLogEntity_examSessionId` ON `${TABLE_NAME}` (`examSessionId`)"
+          },
+          {
+            "name": "index_ExamNavigationLogEntity_problemId",
+            "unique": false,
+            "columnNames": [
+              "problemId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_ExamNavigationLogEntity_problemId` ON `${TABLE_NAME}` (`problemId`)"
+          }
+        ],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "ReviewEntity",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`reviewId` TEXT NOT NULL, `attemptId` TEXT, `examSessionId` TEXT, `problemId` TEXT NOT NULL, `reviewerId` TEXT NOT NULL, `processScore` TEXT NOT NULL, `comment` TEXT NOT NULL, `reviewedAt` INTEGER NOT NULL, PRIMARY KEY(`reviewId`))",
+        "fields": [
+          {
+            "fieldPath": "reviewId",
+            "columnName": "reviewId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "attemptId",
+            "columnName": "attemptId",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "examSessionId",
+            "columnName": "examSessionId",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "problemId",
+            "columnName": "problemId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "reviewerId",
+            "columnName": "reviewerId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "processScore",
+            "columnName": "processScore",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "comment",
+            "columnName": "comment",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "reviewedAt",
+            "columnName": "reviewedAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "reviewId"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_ReviewEntity_attemptId",
+            "unique": false,
+            "columnNames": [
+              "attemptId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_ReviewEntity_attemptId` ON `${TABLE_NAME}` (`attemptId`)"
+          },
+          {
+            "name": "index_ReviewEntity_examSessionId",
+            "unique": false,
+            "columnNames": [
+              "examSessionId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_ReviewEntity_examSessionId` ON `${TABLE_NAME}` (`examSessionId`)"
+          },
+          {
+            "name": "index_ReviewEntity_problemId",
+            "unique": false,
+            "columnNames": [
+              "problemId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_ReviewEntity_problemId` ON `${TABLE_NAME}` (`problemId`)"
+          }
+        ],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "AppSettingsEntity",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`settingId` TEXT NOT NULL, `defaultMaxInputTryCount` INTEGER NOT NULL, `enableSimilarProblemAfterWrong` INTEGER NOT NULL, `enableSimilarProblemAfterMaxAttempts` INTEGER NOT NULL, `requireMasterPin` INTEGER NOT NULL, `autoMoveNextAfterMaxAttempts` INTEGER NOT NULL, `autoMoveDelayMillis` INTEGER NOT NULL, `createdAt` INTEGER NOT NULL, `updatedAt` INTEGER NOT NULL, PRIMARY KEY(`settingId`))",
+        "fields": [
+          {
+            "fieldPath": "settingId",
+            "columnName": "settingId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "defaultMaxInputTryCount",
+            "columnName": "defaultMaxInputTryCount",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "enableSimilarProblemAfterWrong",
+            "columnName": "enableSimilarProblemAfterWrong",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "enableSimilarProblemAfterMaxAttempts",
+            "columnName": "enableSimilarProblemAfterMaxAttempts",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "requireMasterPin",
+            "columnName": "requireMasterPin",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "autoMoveNextAfterMaxAttempts",
+            "columnName": "autoMoveNextAfterMaxAttempts",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "autoMoveDelayMillis",
+            "columnName": "autoMoveDelayMillis",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "createdAt",
+            "columnName": "createdAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "updatedAt",
+            "columnName": "updatedAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "settingId"
+          ]
+        },
+        "indices": [],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "WorkbookSettingsEntity",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`workbookId` TEXT NOT NULL, `maxInputTryCount` INTEGER, `enableSimilarProblemAfterWrong` INTEGER, `enableSimilarProblemAfterMaxAttempts` INTEGER, PRIMARY KEY(`workbookId`))",
+        "fields": [
+          {
+            "fieldPath": "workbookId",
+            "columnName": "workbookId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "maxInputTryCount",
+            "columnName": "maxInputTryCount",
+            "affinity": "INTEGER",
+            "notNull": false
+          },
+          {
+            "fieldPath": "enableSimilarProblemAfterWrong",
+            "columnName": "enableSimilarProblemAfterWrong",
+            "affinity": "INTEGER",
+            "notNull": false
+          },
+          {
+            "fieldPath": "enableSimilarProblemAfterMaxAttempts",
+            "columnName": "enableSimilarProblemAfterMaxAttempts",
+            "affinity": "INTEGER",
+            "notNull": false
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "workbookId"
+          ]
+        },
+        "indices": [],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "ProblemSettingsEntity",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`problemId` TEXT NOT NULL, `maxInputTryCount` INTEGER, PRIMARY KEY(`problemId`))",
+        "fields": [
+          {
+            "fieldPath": "problemId",
+            "columnName": "problemId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "maxInputTryCount",
+            "columnName": "maxInputTryCount",
+            "affinity": "INTEGER",
+            "notNull": false
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "problemId"
+          ]
+        },
+        "indices": [],
+        "foreignKeys": []
+      }
+    ],
+    "views": [],
+    "setupQueries": [
+      "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '4e081296931df0b1259b176548e5a946')"
+    ]
+  }
+}
