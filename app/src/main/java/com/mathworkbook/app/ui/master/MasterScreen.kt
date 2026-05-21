@@ -1,8 +1,13 @@
 package com.mathworkbook.app.ui.master
 
+import android.app.Activity
 import android.content.ActivityNotFoundException
+import android.content.Context
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.result.contract.ActivityResultContract
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -35,6 +40,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -58,12 +64,15 @@ fun MasterScreen(
     var showImport by remember { mutableStateOf(false) }
     var showExamCreate by remember { mutableStateOf(false) }
     var expandedAttemptId by remember { mutableStateOf<String?>(null) }
+    val context = LocalContext.current
+    val zipDocumentContract = remember { ZipFilePickerContract(Intent.ACTION_OPEN_DOCUMENT) }
+    val zipContentContract = remember { ZipFilePickerContract(Intent.ACTION_GET_CONTENT) }
     val zipDocumentPicker = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.OpenDocument(),
+        contract = zipDocumentContract,
         onResult = { uri -> uri?.let(viewModel::importWorkbookZip) }
     )
     val zipContentPicker = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.GetContent(),
+        contract = zipContentContract,
         onResult = { uri -> uri?.let(viewModel::importWorkbookZip) }
     )
     val zipMimeTypes = remember {
@@ -144,14 +153,24 @@ fun MasterScreen(
             onDismiss = { showImport = false },
             onPickZip = {
                 showImport = false
-                try {
-                    zipDocumentPicker.launch(zipMimeTypes)
-                } catch (_: ActivityNotFoundException) {
+                if (canResolveZipFilePicker(context, Intent.ACTION_OPEN_DOCUMENT, zipMimeTypes)) {
                     try {
-                        zipContentPicker.launch("application/zip")
+                        zipDocumentPicker.launch(zipMimeTypes)
                     } catch (_: ActivityNotFoundException) {
-                        viewModel.showMessage("ZIP 파일을 선택할 수 있는 파일 앱을 찾지 못했습니다.")
+                        launchZipContentPickerIfAvailable(
+                            context = context,
+                            mimeTypes = zipMimeTypes,
+                            launcher = { zipContentPicker.launch(zipMimeTypes) },
+                            onUnavailable = { viewModel.showMessage(ZIP_PICKER_UNAVAILABLE_MESSAGE) }
+                        )
                     }
+                } else {
+                    launchZipContentPickerIfAvailable(
+                        context = context,
+                        mimeTypes = zipMimeTypes,
+                        launcher = { zipContentPicker.launch(zipMimeTypes) },
+                        onUnavailable = { viewModel.showMessage(ZIP_PICKER_UNAVAILABLE_MESSAGE) }
+                    )
                 }
             }
         )
@@ -175,6 +194,67 @@ fun MasterScreen(
                 )
             }
         )
+    }
+}
+
+private const val ZIP_PICKER_UNAVAILABLE_MESSAGE =
+    "ZIP 파일을 선택할 수 있는 파일 앱을 찾지 못했습니다. 태블릿 보호자 설정에서 내 파일 또는 Files 앱 사용을 허용한 뒤 다시 시도해 주세요."
+
+private fun launchZipContentPickerIfAvailable(
+    context: Context,
+    mimeTypes: Array<String>,
+    launcher: () -> Unit,
+    onUnavailable: () -> Unit
+) {
+    if (!canResolveZipFilePicker(context, Intent.ACTION_GET_CONTENT, mimeTypes)) {
+        onUnavailable()
+        return
+    }
+    try {
+        launcher()
+    } catch (_: ActivityNotFoundException) {
+        onUnavailable()
+    }
+}
+
+private fun canResolveZipFilePicker(
+    context: Context,
+    action: String,
+    mimeTypes: Array<String>
+): Boolean {
+    val intent = createZipFilePickerIntent(action, mimeTypes)
+    val activityInfo = context.packageManager
+        .resolveActivity(intent, PackageManager.MATCH_DEFAULT_ONLY)
+        ?.activityInfo
+        ?: return false
+    val packageName = activityInfo.packageName.orEmpty()
+    val activityName = activityInfo.name.orEmpty()
+    return !isPhotoPicker(packageName, activityName)
+}
+
+private fun isPhotoPicker(packageName: String, activityName: String): Boolean {
+    return packageName.contains("photopicker", ignoreCase = true) ||
+        activityName.contains("photopicker", ignoreCase = true)
+}
+
+private class ZipFilePickerContract(
+    private val action: String
+) : ActivityResultContract<Array<String>, Uri?>() {
+    override fun createIntent(context: Context, input: Array<String>): Intent {
+        return createZipFilePickerIntent(action, input)
+    }
+
+    override fun parseResult(resultCode: Int, intent: Intent?): Uri? {
+        return if (resultCode == Activity.RESULT_OK) intent?.data else null
+    }
+}
+
+private fun createZipFilePickerIntent(action: String, mimeTypes: Array<String>): Intent {
+    return Intent(action).apply {
+        addCategory(Intent.CATEGORY_OPENABLE)
+        type = "*/*"
+        putExtra(Intent.EXTRA_MIME_TYPES, mimeTypes)
+        putExtra(Intent.EXTRA_LOCAL_ONLY, false)
     }
 }
 
