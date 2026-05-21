@@ -76,7 +76,7 @@ fun MasterScreen(
         onResult = { uri -> uri?.let(viewModel::importWorkbookZip) }
     )
     val zipMimeTypes = remember {
-        arrayOf(
+        listOf(
             "application/zip",
             "application/x-zip-compressed",
             "application/octet-stream"
@@ -153,25 +153,21 @@ fun MasterScreen(
             onDismiss = { showImport = false },
             onPickZip = {
                 showImport = false
-                if (canResolveZipFilePicker(context, Intent.ACTION_OPEN_DOCUMENT, zipMimeTypes)) {
-                    try {
-                        zipDocumentPicker.launch(zipMimeTypes)
-                    } catch (_: ActivityNotFoundException) {
-                        launchZipContentPickerIfAvailable(
+                launchZipPickerIfAvailable(
+                    context = context,
+                    action = Intent.ACTION_OPEN_DOCUMENT,
+                    mimeTypes = zipMimeTypes,
+                    launcher = { request -> zipDocumentPicker.launch(request) },
+                    onUnavailable = {
+                        launchZipPickerIfAvailable(
                             context = context,
+                            action = Intent.ACTION_GET_CONTENT,
                             mimeTypes = zipMimeTypes,
-                            launcher = { zipContentPicker.launch(zipMimeTypes) },
+                            launcher = { request -> zipContentPicker.launch(request) },
                             onUnavailable = { viewModel.showMessage(ZIP_PICKER_UNAVAILABLE_MESSAGE) }
                         )
                     }
-                } else {
-                    launchZipContentPickerIfAvailable(
-                        context = context,
-                        mimeTypes = zipMimeTypes,
-                        launcher = { zipContentPicker.launch(zipMimeTypes) },
-                        onUnavailable = { viewModel.showMessage(ZIP_PICKER_UNAVAILABLE_MESSAGE) }
-                    )
-                }
+                )
             }
         )
     }
@@ -200,48 +196,87 @@ fun MasterScreen(
 private const val ZIP_PICKER_UNAVAILABLE_MESSAGE =
     "ZIP 파일을 선택할 수 있는 파일 앱을 찾지 못했습니다. 태블릿 보호자 설정에서 내 파일 또는 Files 앱 사용을 허용한 뒤 다시 시도해 주세요."
 
-private fun launchZipContentPickerIfAvailable(
+private data class ZipFilePickerRequest(
+    val mimeTypes: List<String>,
+    val packageName: String?
+)
+
+private fun launchZipPickerIfAvailable(
     context: Context,
-    mimeTypes: Array<String>,
-    launcher: () -> Unit,
+    action: String,
+    mimeTypes: List<String>,
+    launcher: (ZipFilePickerRequest) -> Unit,
     onUnavailable: () -> Unit
 ) {
-    if (!canResolveZipFilePicker(context, Intent.ACTION_GET_CONTENT, mimeTypes)) {
+    val packageName = resolveZipFilePickerPackage(context, action, mimeTypes)
+    if (packageName == null) {
         onUnavailable()
         return
     }
     try {
-        launcher()
+        launcher(ZipFilePickerRequest(mimeTypes, packageName))
     } catch (_: ActivityNotFoundException) {
         onUnavailable()
     }
 }
 
-private fun canResolveZipFilePicker(
+private fun resolveZipFilePickerPackage(
     context: Context,
     action: String,
-    mimeTypes: Array<String>
-): Boolean {
-    val intent = createZipFilePickerIntent(action, mimeTypes)
-    val activityInfo = context.packageManager
-        .resolveActivity(intent, PackageManager.MATCH_DEFAULT_ONLY)
+    mimeTypes: List<String>
+): String? {
+    val intent = createZipFilePickerIntent(
+        action = action,
+        mimeTypes = mimeTypes,
+        packageName = null
+    )
+    val candidates = context.packageManager
+        .queryIntentActivities(intent, PackageManager.MATCH_DEFAULT_ONLY)
+
+    return candidates
+        .firstOrNull { info ->
+            val packageName = info.activityInfo.packageName.orEmpty()
+            val activityName = info.activityInfo.name.orEmpty()
+            isFilePicker(packageName, activityName)
+        }
         ?.activityInfo
-        ?: return false
-    val packageName = activityInfo.packageName.orEmpty()
-    val activityName = activityInfo.name.orEmpty()
-    return !isPhotoPicker(packageName, activityName)
+        ?.packageName
 }
 
-private fun isPhotoPicker(packageName: String, activityName: String): Boolean {
-    return packageName.contains("photopicker", ignoreCase = true) ||
-        activityName.contains("photopicker", ignoreCase = true)
+private fun isFilePicker(packageName: String, activityName: String): Boolean {
+    if (isMediaPicker(packageName, activityName)) return false
+    val text = "$packageName/$activityName"
+    return FILE_PICKER_NAME_HINTS.any { hint -> text.contains(hint, ignoreCase = true) }
 }
+
+private fun isMediaPicker(packageName: String, activityName: String): Boolean {
+    val text = "$packageName/$activityName"
+    return MEDIA_PICKER_NAME_HINTS.any { hint -> text.contains(hint, ignoreCase = true) }
+}
+
+private val FILE_PICKER_NAME_HINTS = listOf(
+    "documentsui",
+    "myfiles",
+    "filemanager",
+    "files",
+    "document",
+    "storage",
+    "explorer"
+)
+
+private val MEDIA_PICKER_NAME_HINTS = listOf(
+    "photopicker",
+    "photo",
+    "gallery",
+    "soundpicker",
+    "camera"
+)
 
 private class ZipFilePickerContract(
     private val action: String
-) : ActivityResultContract<Array<String>, Uri?>() {
-    override fun createIntent(context: Context, input: Array<String>): Intent {
-        return createZipFilePickerIntent(action, input)
+) : ActivityResultContract<ZipFilePickerRequest, Uri?>() {
+    override fun createIntent(context: Context, input: ZipFilePickerRequest): Intent {
+        return createZipFilePickerIntent(action, input.mimeTypes, input.packageName)
     }
 
     override fun parseResult(resultCode: Int, intent: Intent?): Uri? {
@@ -249,12 +284,17 @@ private class ZipFilePickerContract(
     }
 }
 
-private fun createZipFilePickerIntent(action: String, mimeTypes: Array<String>): Intent {
+private fun createZipFilePickerIntent(
+    action: String,
+    mimeTypes: List<String>,
+    packageName: String?
+): Intent {
     return Intent(action).apply {
         addCategory(Intent.CATEGORY_OPENABLE)
         type = "*/*"
-        putExtra(Intent.EXTRA_MIME_TYPES, mimeTypes)
+        putExtra(Intent.EXTRA_MIME_TYPES, mimeTypes.toTypedArray())
         putExtra(Intent.EXTRA_LOCAL_ONLY, false)
+        packageName?.let(::setPackage)
     }
 }
 
