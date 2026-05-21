@@ -122,6 +122,7 @@ private val DrawingTools = listOf(
 )
 
 private val EraserTool = DrawingTool("eraser", "영역 지우개", Color(0xFF6B7280), 44f, ToolKind.Eraser)
+private val PenWidthOptions = listOf(3f, 5f, 8f, 11f)
 
 @Stable
 class HandwritingState {
@@ -206,6 +207,7 @@ fun HandwritingCanvas(
     val scrollState = rememberScrollState()
     var drawingEnabled by remember { mutableStateOf(true) }
     var currentTool by remember { mutableStateOf(DrawingTools.first()) }
+    var penWidth by remember { mutableStateOf(5f) }
     val eraserRadius = 22.dp
     val density = LocalDensity.current
 
@@ -248,6 +250,7 @@ fun HandwritingCanvas(
                         view.bindState(state)
                         view.drawingEnabled = drawingEnabled
                         view.currentTool = currentTool
+                        view.penWidth = penWidth
                         view.eraserRadiusPx = with(density) { eraserRadius.toPx() }
                     },
                     modifier = Modifier
@@ -287,7 +290,7 @@ fun HandwritingCanvas(
             Button(onClick = { drawingEnabled = !drawingEnabled }) {
                 Text(if (drawingEnabled) "스크롤" else "필기")
             }
-            DrawingTools.forEach { tool ->
+            DrawingTools.forEachIndexed { index, tool ->
                 ToolCircleButton(
                     tool = tool,
                     selected = drawingEnabled && currentTool.id == tool.id,
@@ -296,6 +299,12 @@ fun HandwritingCanvas(
                         drawingEnabled = true
                     }
                 )
+                if (index == 0) {
+                    PenWidthButton(
+                        width = penWidth,
+                        onClick = { penWidth = penWidth.nextPenWidth() }
+                    )
+                }
             }
             EraserButton(
                 selected = drawingEnabled && currentTool.kind == ToolKind.Eraser,
@@ -303,6 +312,33 @@ fun HandwritingCanvas(
                     currentTool = EraserTool
                     drawingEnabled = true
                 }
+            )
+        }
+    }
+}
+
+@Composable
+private fun PenWidthButton(
+    width: Float,
+    onClick: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .size(34.dp)
+            .semantics { contentDescription = "펜 굵기 ${width.toInt()}" }
+            .clickable(onClick = onClick)
+            .background(Color.White, CircleShape)
+            .border(1.dp, Color(0xFFE5E7EB), CircleShape)
+            .padding(4.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            drawLine(
+                color = Color(0xFF111827),
+                start = Offset(4.dp.toPx(), size.height / 2f),
+                end = Offset(size.width - 4.dp.toPx(), size.height / 2f),
+                strokeWidth = width.coerceIn(3f, 11f),
+                cap = androidx.compose.ui.graphics.StrokeCap.Round
             )
         }
     }
@@ -399,6 +435,7 @@ private class InkDrawingView(context: Context) : View(context) {
         }
 
     var currentTool: DrawingTool = DrawingTools.first()
+    var penWidth: Float = 5f
     var eraserRadiusPx: Float = 22f
 
     init {
@@ -507,7 +544,7 @@ private class InkDrawingView(context: Context) : View(context) {
             state.start(
                 position = position,
                 color = currentTool.color,
-                width = currentTool.width,
+                width = currentTool.activeWidth(penWidth),
                 kind = currentTool.strokeKind()
             )
         } else {
@@ -530,6 +567,19 @@ private fun MotionEvent.yFor(pointerIndex: Int): Float = getY(pointerIndex)
 private fun Color.toHexString(): String = "#%08X".format(toArgb())
 
 private const val MinInkPointDistancePx = 0.7f
+
+private fun Float.nextPenWidth(): Float {
+    val index = PenWidthOptions.indexOfFirst { it == this }
+    return PenWidthOptions[(index + 1).floorMod(PenWidthOptions.size)]
+}
+
+private fun Int.floorMod(divisor: Int): Int {
+    return ((this % divisor) + divisor) % divisor
+}
+
+private fun DrawingTool.activeWidth(penWidth: Float): Float {
+    return if (kind == ToolKind.Pen) penWidth else width
+}
 
 private fun distance(a: Offset, b: Offset): Float {
     val dx = a.x - b.x
