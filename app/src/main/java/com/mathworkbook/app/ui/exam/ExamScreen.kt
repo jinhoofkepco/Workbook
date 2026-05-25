@@ -37,12 +37,14 @@ import com.mathworkbook.app.core.domain.ProblemType
 import com.mathworkbook.app.ui.components.HandwritingCanvas
 import com.mathworkbook.app.ui.components.HandwritingState
 import com.mathworkbook.app.ui.components.ProblemWorksheetBackground
+import com.mathworkbook.app.ui.components.estimateWorksheetContentHeightDp
 import com.mathworkbook.app.ui.components.rememberHandwritingState
 
 @Composable
 fun ExamScreen(
     viewModel: ExamViewModel,
     isMasterMode: Boolean = false,
+    questionTextSizeSp: Int = 24,
     modifier: Modifier = Modifier
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -63,7 +65,7 @@ fun ExamScreen(
             }
         } else {
             when (state.mode) {
-                ExamMode.TAKING -> TakingScreen(state, viewModel, handwritingState, isMasterMode)
+                ExamMode.TAKING -> TakingScreen(state, viewModel, handwritingState, isMasterMode, questionTextSizeSp)
                 ExamMode.REVIEW -> ReviewBeforeSubmitScreen(state, viewModel)
                 ExamMode.RESULT -> ExamResultScreen(state)
             }
@@ -76,7 +78,8 @@ private fun TakingScreen(
     state: ExamUiState,
     viewModel: ExamViewModel,
     handwritingState: HandwritingState,
-    isMasterMode: Boolean
+    isMasterMode: Boolean,
+    questionTextSizeSp: Int
 ) {
     Row(
         modifier = Modifier
@@ -107,9 +110,12 @@ private fun TakingScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .weight(1f),
-                contentHeight = 1320.dp,
+                contentHeight = estimateWorksheetContentHeightDp(state.currentProblem).dp,
                 backgroundContent = {
-                    ProblemWorksheetBackground(problem = state.currentProblem)
+                    ProblemWorksheetBackground(
+                        problem = state.currentProblem,
+                        questionTextSizeSp = questionTextSizeSp
+                    )
                 }
             )
         }
@@ -215,7 +221,7 @@ private fun ExamAnswerInputs(state: ExamUiState, viewModel: ExamViewModel, readO
     }
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        state.fields.forEach { field ->
+        state.fields.filterNot { it.fieldType.isWorksheetOnlyField() }.forEach { field ->
             OutlinedTextField(
                 value = state.answers["${state.currentProblem?.problemId}:${field.answerFieldId}"].orEmpty(),
                 onValueChange = { if (!readOnly) viewModel.updateInput(field.answerFieldId, it) },
@@ -236,6 +242,10 @@ private fun keyboardOptionsFor(fieldType: AnswerFieldType): KeyboardOptions {
         else -> ImeKeyboardType.Text
     }
     return KeyboardOptions(keyboardType = keyboardType)
+}
+
+private fun AnswerFieldType.isWorksheetOnlyField(): Boolean {
+    return this == AnswerFieldType.DRAWING || this == AnswerFieldType.TABLE
 }
 
 @Composable

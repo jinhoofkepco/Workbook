@@ -13,6 +13,10 @@ import com.mathworkbook.app.core.usecase.SubmitExamUseCase
 import com.mathworkbook.app.core.usecase.SubmitPracticeAnswerUseCase
 
 class AppContainer(context: Context) {
+    val appPreferences = context.applicationContext.getSharedPreferences(
+        "math_workbook_preferences",
+        Context.MODE_PRIVATE
+    )
     val database = AppDatabase.get(context)
     val dao = database.mathDao()
     val fileStorage = FileStorage(context)

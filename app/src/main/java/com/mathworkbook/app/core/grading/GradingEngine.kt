@@ -9,6 +9,7 @@ import com.mathworkbook.app.core.domain.FieldGradingResult
 import com.mathworkbook.app.core.domain.GradingResult
 import com.mathworkbook.app.core.domain.ProblemType
 import org.json.JSONArray
+import org.json.JSONObject
 import java.math.BigDecimal
 
 interface GradingEngine {
@@ -31,22 +32,13 @@ class DefaultGradingEngine(
         choices: List<ChoiceEntity>,
         submittedAnswers: Map<String, String>
     ): GradingResult {
-        if (rules.any { it.manualGradingRequired || it.answerType == AnswerType.MANUAL }) {
-            val manualResults = fields.ifEmpty { listOf(null) }.map { field ->
-                val raw = field?.let { submittedAnswers[it.answerFieldId] }.orEmpty()
-                FieldGradingResult(
-                    answerFieldId = field?.answerFieldId,
-                    submittedRaw = raw,
-                    normalizedSubmitted = raw.trim(),
-                    isCorrect = false,
-                    requiresManualReview = true
-                )
-            }
-            return GradingResult(
-                isCorrect = false,
-                fieldResults = manualResults,
-                requiresManualReview = true
-            )
+        val gradingPolicy = ProblemGradingPolicy.fromJson(problem.imageCropRectJson)
+        if (gradingPolicy.skipAll || problem.problemType == ProblemType.MANUAL_ONLY) {
+            return manualReviewResult(fields, submittedAnswers)
+        }
+
+        if (rules.any { it.answerFieldId == null && it.requiresManualReview() }) {
+            return manualReviewResult(fields, submittedAnswers)
         }
 
         if (problem.problemType == ProblemType.MULTIPLE_CHOICE) {
@@ -57,6 +49,18 @@ class DefaultGradingEngine(
             val rule = rules.firstOrNull { it.answerFieldId == field.answerFieldId }
                 ?: rules.firstOrNull { it.answerFieldId == null }
             val raw = submittedAnswers[field.answerFieldId].orEmpty()
+            val requiresManualReview = gradingPolicy.skipFieldIds.contains(field.answerFieldId) ||
+                field.requiresManualReview() ||
+                rule?.requiresManualReview() == true
+            if (requiresManualReview) {
+                return@map FieldGradingResult(
+                    answerFieldId = field.answerFieldId,
+                    submittedRaw = raw,
+                    normalizedSubmitted = raw.trim(),
+                    isCorrect = false,
+                    requiresManualReview = true
+                )
+            }
             val normalized = rule?.let { normalizer.normalize(raw, it).canonical } ?: raw.trim()
             val correct = if (rule == null || raw.isBlank()) false else isAccepted(raw, rule)
             FieldGradingResult(
@@ -66,11 +70,35 @@ class DefaultGradingEngine(
                 isCorrect = correct
             )
         }
-        val blankCount = fieldResults.count { it.submittedRaw.isBlank() }
+        val blankCount = fieldResults.count { !it.requiresManualReview && it.submittedRaw.isBlank() }
+        val requiresManualReview = fieldResults.any { it.requiresManualReview }
+        val autoResults = fieldResults.filterNot { it.requiresManualReview }
         return GradingResult(
-            isCorrect = fieldResults.isNotEmpty() && fieldResults.all { it.isCorrect },
+            isCorrect = !requiresManualReview && autoResults.isNotEmpty() && autoResults.all { it.isCorrect },
             fieldResults = fieldResults,
+            requiresManualReview = requiresManualReview,
             blankCount = blankCount
+        )
+    }
+
+    private fun manualReviewResult(
+        fields: List<AnswerFieldEntity>,
+        submittedAnswers: Map<String, String>
+    ): GradingResult {
+        val manualResults = fields.ifEmpty { listOf(null) }.map { field ->
+            val raw = field?.let { submittedAnswers[it.answerFieldId] }.orEmpty()
+            FieldGradingResult(
+                answerFieldId = field?.answerFieldId,
+                submittedRaw = raw,
+                normalizedSubmitted = raw.trim(),
+                isCorrect = false,
+                requiresManualReview = true
+            )
+        }
+        return GradingResult(
+            isCorrect = false,
+            fieldResults = manualResults,
+            requiresManualReview = true
         )
     }
 
@@ -102,6 +130,9 @@ class DefaultGradingEngine(
         val submitted = normalizer.normalize(raw, rule)
         val acceptedRawValues = buildList {
             add(rule.correctAnswerRaw)
+            if (rule.normalizedAnswer.isNotBlank() && rule.normalizedAnswer != rule.correctAnswerRaw) {
+                add(rule.normalizedAnswer)
+            }
             if (rule.allowMultipleAnswers && !rule.acceptedAnswersJson.isNullOrBlank()) {
                 addAll(parseAcceptedAnswers(rule.acceptedAnswersJson))
             }
@@ -125,6 +156,7 @@ class DefaultGradingEngine(
         rule: AnswerRuleEntity
     ): Boolean {
         return when (rule.answerType) {
+            AnswerType.TEXT -> compareNumberOrText(submitted, accepted)
             AnswerType.FRACTION -> compareFraction(submitted, accepted, rule)
             AnswerType.DECIMAL -> compareDecimal(submitted, accepted, rule.decimalTolerance)
             AnswerType.INTEGER,
@@ -133,7 +165,8 @@ class DefaultGradingEngine(
             AnswerType.MONEY,
             AnswerType.UNIT_VALUE -> compareNumberOrText(submitted, accepted)
             AnswerType.CHOICE -> submitted.canonical == accepted.canonical
-            AnswerType.MANUAL -> false
+            AnswerType.MANUAL,
+            AnswerType.MANUAL_REVIEW -> false
         }
     }
 
@@ -170,7 +203,101 @@ class DefaultGradingEngine(
         return if (left != null && right != null) {
             left.compareTo(right) == 0
         } else {
-            submitted.canonical == accepted.canonical
+            val submittedChoices = submitted.canonical.toChoiceSelectionCanonical()
+            val acceptedChoices = accepted.canonical.toChoiceSelectionCanonical()
+            if (submittedChoices != null && acceptedChoices != null) {
+                submittedChoices == acceptedChoices
+            } else {
+                submitted.canonical == accepted.canonical
+            }
+        }
+    }
+
+    private fun String.toChoiceSelectionCanonical(): String? {
+        val selected = mutableListOf<Int>()
+        var index = 0
+        while (index < length) {
+            val char = this[index]
+            when {
+                char.isWhitespace() || char in ChoiceSeparators -> index += 1
+                circledNumberValue(char) != null -> {
+                    selected += circledNumberValue(char) ?: 0
+                    index += 1
+                }
+                char.isDigit() -> {
+                    val start = index
+                    while (index < length && this[index].isDigit()) index += 1
+                    selected += substring(start, index).toIntOrNull() ?: return null
+                }
+                else -> return null
+            }
+        }
+        return selected
+            .takeIf { it.isNotEmpty() }
+            ?.distinct()
+            ?.sorted()
+            ?.joinToString(",")
+    }
+
+    private fun circledNumberValue(char: Char): Int? {
+        return CircledNumbers.indexOf(char.toString()).takeIf { it > 0 }
+    }
+
+    private fun AnswerRuleEntity.requiresManualReview(): Boolean {
+        return manualGradingRequired ||
+            answerType == AnswerType.MANUAL ||
+            answerType == AnswerType.MANUAL_REVIEW
+    }
+
+    private fun AnswerFieldEntity.requiresManualReview(): Boolean {
+        if (positionJson.isNullOrBlank()) return false
+        return runCatching {
+            val meta = JSONObject(positionJson.orEmpty())
+            meta.optBoolean("manualReviewRequired", false) ||
+                meta.optBoolean("skipAutoGrading", false) ||
+                meta.optBoolean("disabled", false) ||
+                meta.optBoolean("readOnly", false)
+        }.getOrDefault(false)
+    }
+
+    private data class ProblemGradingPolicy(
+        val mode: String,
+        val skipOnSubmit: Boolean,
+        val skipFieldIds: Set<String>
+    ) {
+        val skipAll: Boolean
+            get() = skipOnSubmit || mode == "manual_review"
+
+        companion object {
+            fun fromJson(json: String?): ProblemGradingPolicy {
+                if (json.isNullOrBlank()) return ProblemGradingPolicy("auto", false, emptySet())
+                return runCatching {
+                    val root = JSONObject(json)
+                    val policy = root.optJSONObject("gradingPolicy") ?: return@runCatching ProblemGradingPolicy("auto", false, emptySet())
+                    val skipFields = policy.optJSONArray("skipFieldsOnSubmit")
+                    ProblemGradingPolicy(
+                        mode = policy.optString("mode", "auto").lowercase(),
+                        skipOnSubmit = policy.optBoolean("skipOnSubmit", false),
+                        skipFieldIds = if (skipFields == null) {
+                            emptySet()
+                        } else {
+                            List(skipFields.length()) { index -> skipFields.optString(index) }
+                                .filter { it.isNotBlank() }
+                                .toSet()
+                        }
+                    )
+                }.getOrDefault(ProblemGradingPolicy("auto", false, emptySet()))
+            }
         }
     }
 }
+
+private val ChoiceSeparators = setOf(',', '/', '·', '.', '，', '、')
+
+private val CircledNumbers = listOf(
+    "",
+    "①", "②", "③", "④", "⑤",
+    "⑥", "⑦", "⑧", "⑨", "⑩",
+    "⑪", "⑫", "⑬", "⑭", "⑮",
+    "⑯", "⑰", "⑱", "⑲", "⑳"
+)

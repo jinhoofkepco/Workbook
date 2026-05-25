@@ -15,10 +15,14 @@ enum class AnswerFieldType {
     FRACTION,
     CHOICE,
     MONEY,
-    ANGLE
+    ANGLE,
+    DRAWING,
+    TABLE,
+    TEXTAREA
 }
 
 enum class AnswerType {
+    TEXT,
     INTEGER,
     DECIMAL,
     FRACTION,
@@ -27,7 +31,8 @@ enum class AnswerType {
     MONEY,
     UNIT_VALUE,
     CHOICE,
-    MANUAL
+    MANUAL,
+    MANUAL_REVIEW
 }
 
 enum class UnitType {

@@ -1,0 +1,1701 @@
+{
+  "workbook": {
+    "workbookId": "hwangso-6-1-6-volume-split",
+    "title": "초 6-1 일품 도형과 부피",
+    "description": "6-1 volume workbook split by problem",
+    "grade": "6",
+    "version": 1
+  },
+  "chapters": [
+    {
+      "chapterId": "hwangso-6-1-6-volume-split-ch01",
+      "title": "개념탐구 1 직육면체의 겉넓이",
+      "orderIndex": 1
+    },
+    {
+      "chapterId": "hwangso-6-1-6-volume-split-ch02",
+      "title": "개념탐구 2 복잡한 도형의 겉넓이",
+      "orderIndex": 2
+    },
+    {
+      "chapterId": "hwangso-6-1-6-volume-split-ch03",
+      "title": "개념탐구 3 직육면체의 부피",
+      "orderIndex": 3
+    },
+    {
+      "chapterId": "hwangso-6-1-6-volume-split-ch04",
+      "title": "개념탐구 4 복잡한 도형의 부피",
+      "orderIndex": 4
+    },
+    {
+      "chapterId": "hwangso-6-1-6-volume-split-ch05",
+      "title": "개념탐구 5 겉넓이와 부피",
+      "orderIndex": 5
+    },
+    {
+      "chapterId": "hwangso-6-1-6-volume-split-ch06",
+      "title": "개념탐구 6 겉넓이·부피의 활용",
+      "orderIndex": 6
+    },
+    {
+      "chapterId": "hwangso-6-1-6-volume-split-ch07",
+      "title": "개념탐구 7 물의 부피 ① 부피의 단위와 들이",
+      "orderIndex": 7
+    },
+    {
+      "chapterId": "hwangso-6-1-6-volume-split-ch08",
+      "title": "개념탐구 8 물의 부피 ② 물의 높이",
+      "orderIndex": 8
+    },
+    {
+      "chapterId": "hwangso-6-1-6-volume-split-ch09",
+      "title": "개념탐구 9 물의 부피 ③ 넘친 물의 부피",
+      "orderIndex": 9
+    },
+    {
+      "chapterId": "hwangso-6-1-6-volume-split-ch10",
+      "title": "개념탐구 10 물의 부피 ④ 물의 부피의 활용",
+      "orderIndex": 10
+    }
+  ],
+  "problems": [
+    {
+      "problemId": "hwangso-6-1-6-volume-split-p001",
+      "chapterId": "hwangso-6-1-6-volume-split-ch01",
+      "problemType": "IMAGE_BASED",
+      "questionText": "개념탐구 1 정답을 쓰세요.",
+      "imagePath": "images/p001-01-0.png",
+      "sourcePageImagePath": "images/p001-01-0.png",
+      "imageDisplayJson": {
+        "heightDp": 230,
+        "widthFraction": 1.0,
+        "align": "center",
+        "placement": "aboveText"
+      },
+      "orderIndex": 1,
+      "answerFields": [
+        {
+          "answerFieldId": "hwangso-6-1-6-volume-split-p001-answer",
+          "label": "정답",
+          "fieldType": "TEXT",
+          "orderIndex": 1,
+          "required": true
+        }
+      ],
+      "answerRules": [
+        {
+          "answerRuleId": "hwangso-6-1-6-volume-split-p001-rule",
+          "answerFieldId": "hwangso-6-1-6-volume-split-p001-answer",
+          "answerType": "UNIT_VALUE",
+          "correctAnswerRaw": "80, 72",
+          "normalizedAnswer": "80, 72",
+          "unitType": "NONE"
+        }
+      ],
+      "sourceFigureImagePath": "figures/figure-01-0.png"
+    },
+    {
+      "problemId": "hwangso-6-1-6-volume-split-p002",
+      "chapterId": "hwangso-6-1-6-volume-split-ch01",
+      "problemType": "IMAGE_BASED",
+      "questionText": "예제 1-1 정답을 쓰세요.",
+      "imagePath": "images/p002-01-1.png",
+      "sourcePageImagePath": "images/p002-01-1.png",
+      "imageDisplayJson": {
+        "heightDp": 222,
+        "widthFraction": 1.0,
+        "align": "center",
+        "placement": "aboveText"
+      },
+      "orderIndex": 2,
+      "answerFields": [
+        {
+          "answerFieldId": "hwangso-6-1-6-volume-split-p002-answer",
+          "label": "정답",
+          "fieldType": "TEXT",
+          "orderIndex": 1,
+          "required": true
+        }
+      ],
+      "answerRules": [
+        {
+          "answerRuleId": "hwangso-6-1-6-volume-split-p002-rule",
+          "answerFieldId": "hwangso-6-1-6-volume-split-p002-answer",
+          "answerType": "UNIT_VALUE",
+          "correctAnswerRaw": "100",
+          "normalizedAnswer": "100",
+          "unitType": "NONE"
+        }
+      ],
+      "sourceFigureImagePath": "figures/figure-01-1.png"
+    },
+    {
+      "problemId": "hwangso-6-1-6-volume-split-p003",
+      "chapterId": "hwangso-6-1-6-volume-split-ch01",
+      "problemType": "IMAGE_BASED",
+      "questionText": "예제 1-2 정답을 쓰세요.",
+      "imagePath": "images/p003-01-2.png",
+      "sourcePageImagePath": "images/p003-01-2.png",
+      "imageDisplayJson": {
+        "heightDp": 198,
+        "widthFraction": 1.0,
+        "align": "center",
+        "placement": "aboveText"
+      },
+      "orderIndex": 3,
+      "answerFields": [
+        {
+          "answerFieldId": "hwangso-6-1-6-volume-split-p003-answer",
+          "label": "정답",
+          "fieldType": "TEXT",
+          "orderIndex": 1,
+          "required": true
+        }
+      ],
+      "answerRules": [
+        {
+          "answerRuleId": "hwangso-6-1-6-volume-split-p003-rule",
+          "answerFieldId": "hwangso-6-1-6-volume-split-p003-answer",
+          "answerType": "UNIT_VALUE",
+          "correctAnswerRaw": "512",
+          "normalizedAnswer": "512",
+          "unitType": "NONE"
+        }
+      ],
+      "sourceFigureImagePath": "figures/figure-01-2.png"
+    },
+    {
+      "problemId": "hwangso-6-1-6-volume-split-p004",
+      "chapterId": "hwangso-6-1-6-volume-split-ch01",
+      "problemType": "IMAGE_BASED",
+      "questionText": "예제 1-3 정답을 쓰세요.",
+      "imagePath": "images/p004-01-3.png",
+      "sourcePageImagePath": "images/p004-01-3.png",
+      "imageDisplayJson": {
+        "heightDp": 206,
+        "widthFraction": 1.0,
+        "align": "center",
+        "placement": "aboveText"
+      },
+      "orderIndex": 4,
+      "answerFields": [
+        {
+          "answerFieldId": "hwangso-6-1-6-volume-split-p004-answer",
+          "label": "정답",
+          "fieldType": "TEXT",
+          "orderIndex": 1,
+          "required": true
+        }
+      ],
+      "answerRules": [
+        {
+          "answerRuleId": "hwangso-6-1-6-volume-split-p004-rule",
+          "answerFieldId": "hwangso-6-1-6-volume-split-p004-answer",
+          "answerType": "UNIT_VALUE",
+          "correctAnswerRaw": "3",
+          "normalizedAnswer": "3",
+          "unitType": "NONE"
+        }
+      ],
+      "sourceFigureImagePath": "figures/figure-01-3.png"
+    },
+    {
+      "problemId": "hwangso-6-1-6-volume-split-p005",
+      "chapterId": "hwangso-6-1-6-volume-split-ch01",
+      "problemType": "IMAGE_BASED",
+      "questionText": "예제 1-4 정답을 쓰세요.",
+      "imagePath": "images/p005-01-4.png",
+      "sourcePageImagePath": "images/p005-01-4.png",
+      "imageDisplayJson": {
+        "heightDp": 183,
+        "widthFraction": 1.0,
+        "align": "center",
+        "placement": "aboveText"
+      },
+      "orderIndex": 5,
+      "answerFields": [
+        {
+          "answerFieldId": "hwangso-6-1-6-volume-split-p005-answer",
+          "label": "정답",
+          "fieldType": "TEXT",
+          "orderIndex": 1,
+          "required": true
+        }
+      ],
+      "answerRules": [
+        {
+          "answerRuleId": "hwangso-6-1-6-volume-split-p005-rule",
+          "answerFieldId": "hwangso-6-1-6-volume-split-p005-answer",
+          "answerType": "UNIT_VALUE",
+          "correctAnswerRaw": "1112",
+          "normalizedAnswer": "1112",
+          "unitType": "NONE"
+        }
+      ]
+    },
+    {
+      "problemId": "hwangso-6-1-6-volume-split-p006",
+      "chapterId": "hwangso-6-1-6-volume-split-ch02",
+      "problemType": "IMAGE_BASED",
+      "questionText": "개념탐구 2 정답을 쓰세요.",
+      "imagePath": "images/p006-02-0.png",
+      "sourcePageImagePath": "images/p006-02-0.png",
+      "imageDisplayJson": {
+        "heightDp": 261,
+        "widthFraction": 1.0,
+        "align": "center",
+        "placement": "aboveText"
+      },
+      "orderIndex": 6,
+      "answerFields": [
+        {
+          "answerFieldId": "hwangso-6-1-6-volume-split-p006-answer",
+          "label": "정답",
+          "fieldType": "TEXT",
+          "orderIndex": 1,
+          "required": true
+        }
+      ],
+      "answerRules": [
+        {
+          "answerRuleId": "hwangso-6-1-6-volume-split-p006-rule",
+          "answerFieldId": "hwangso-6-1-6-volume-split-p006-answer",
+          "answerType": "UNIT_VALUE",
+          "correctAnswerRaw": "630",
+          "normalizedAnswer": "630",
+          "unitType": "NONE"
+        }
+      ],
+      "sourceFigureImagePath": "figures/figure-02-0.png"
+    },
+    {
+      "problemId": "hwangso-6-1-6-volume-split-p007",
+      "chapterId": "hwangso-6-1-6-volume-split-ch02",
+      "problemType": "IMAGE_BASED",
+      "questionText": "예제 2-1 정답을 쓰세요.",
+      "imagePath": "images/p007-02-1.png",
+      "sourcePageImagePath": "images/p007-02-1.png",
+      "imageDisplayJson": {
+        "heightDp": 198,
+        "widthFraction": 1.0,
+        "align": "center",
+        "placement": "aboveText"
+      },
+      "orderIndex": 7,
+      "answerFields": [
+        {
+          "answerFieldId": "hwangso-6-1-6-volume-split-p007-answer",
+          "label": "정답",
+          "fieldType": "TEXT",
+          "orderIndex": 1,
+          "required": true
+        }
+      ],
+      "answerRules": [
+        {
+          "answerRuleId": "hwangso-6-1-6-volume-split-p007-rule",
+          "answerFieldId": "hwangso-6-1-6-volume-split-p007-answer",
+          "answerType": "UNIT_VALUE",
+          "correctAnswerRaw": "312",
+          "normalizedAnswer": "312",
+          "unitType": "NONE"
+        }
+      ],
+      "sourceFigureImagePath": "figures/figure-02-1.png"
+    },
+    {
+      "problemId": "hwangso-6-1-6-volume-split-p008",
+      "chapterId": "hwangso-6-1-6-volume-split-ch02",
+      "problemType": "IMAGE_BASED",
+      "questionText": "예제 2-2 정답을 쓰세요.",
+      "imagePath": "images/p008-02-2.png",
+      "sourcePageImagePath": "images/p008-02-2.png",
+      "imageDisplayJson": {
+        "heightDp": 202,
+        "widthFraction": 1.0,
+        "align": "center",
+        "placement": "aboveText"
+      },
+      "orderIndex": 8,
+      "answerFields": [
+        {
+          "answerFieldId": "hwangso-6-1-6-volume-split-p008-answer",
+          "label": "정답",
+          "fieldType": "TEXT",
+          "orderIndex": 1,
+          "required": true
+        }
+      ],
+      "answerRules": [
+        {
+          "answerRuleId": "hwangso-6-1-6-volume-split-p008-rule",
+          "answerFieldId": "hwangso-6-1-6-volume-split-p008-answer",
+          "answerType": "UNIT_VALUE",
+          "correctAnswerRaw": "6",
+          "normalizedAnswer": "6",
+          "unitType": "NONE"
+        }
+      ],
+      "sourceFigureImagePath": "figures/figure-02-2.png"
+    },
+    {
+      "problemId": "hwangso-6-1-6-volume-split-p009",
+      "chapterId": "hwangso-6-1-6-volume-split-ch02",
+      "problemType": "IMAGE_BASED",
+      "questionText": "예제 2-3 정답을 쓰세요.",
+      "imagePath": "images/p009-02-3.png",
+      "sourcePageImagePath": "images/p009-02-3.png",
+      "imageDisplayJson": {
+        "heightDp": 180,
+        "widthFraction": 1.0,
+        "align": "center",
+        "placement": "aboveText"
+      },
+      "orderIndex": 9,
+      "answerFields": [
+        {
+          "answerFieldId": "hwangso-6-1-6-volume-split-p009-answer",
+          "label": "정답",
+          "fieldType": "TEXT",
+          "orderIndex": 1,
+          "required": true
+        }
+      ],
+      "answerRules": [
+        {
+          "answerRuleId": "hwangso-6-1-6-volume-split-p009-rule",
+          "answerFieldId": "hwangso-6-1-6-volume-split-p009-answer",
+          "answerType": "UNIT_VALUE",
+          "correctAnswerRaw": "720",
+          "normalizedAnswer": "720",
+          "unitType": "NONE"
+        }
+      ],
+      "sourceFigureImagePath": "figures/figure-02-3.png"
+    },
+    {
+      "problemId": "hwangso-6-1-6-volume-split-p010",
+      "chapterId": "hwangso-6-1-6-volume-split-ch02",
+      "problemType": "IMAGE_BASED",
+      "questionText": "예제 2-4 정답을 쓰세요.",
+      "imagePath": "images/p010-02-4.png",
+      "sourcePageImagePath": "images/p010-02-4.png",
+      "imageDisplayJson": {
+        "heightDp": 180,
+        "widthFraction": 1.0,
+        "align": "center",
+        "placement": "aboveText"
+      },
+      "orderIndex": 10,
+      "answerFields": [
+        {
+          "answerFieldId": "hwangso-6-1-6-volume-split-p010-answer",
+          "label": "정답",
+          "fieldType": "TEXT",
+          "orderIndex": 1,
+          "required": true
+        }
+      ],
+      "answerRules": [
+        {
+          "answerRuleId": "hwangso-6-1-6-volume-split-p010-rule",
+          "answerFieldId": "hwangso-6-1-6-volume-split-p010-answer",
+          "answerType": "UNIT_VALUE",
+          "correctAnswerRaw": "350",
+          "normalizedAnswer": "350",
+          "unitType": "NONE"
+        }
+      ],
+      "sourceFigureImagePath": "figures/figure-02-4.png"
+    },
+    {
+      "problemId": "hwangso-6-1-6-volume-split-p011",
+      "chapterId": "hwangso-6-1-6-volume-split-ch03",
+      "problemType": "IMAGE_BASED",
+      "questionText": "개념탐구 3 정답을 쓰세요.",
+      "imagePath": "images/p011-03-0.png",
+      "sourcePageImagePath": "images/p011-03-0.png",
+      "imageDisplayJson": {
+        "heightDp": 323,
+        "widthFraction": 1.0,
+        "align": "center",
+        "placement": "aboveText"
+      },
+      "orderIndex": 11,
+      "answerFields": [
+        {
+          "answerFieldId": "hwangso-6-1-6-volume-split-p011-answer",
+          "label": "정답",
+          "fieldType": "TEXT",
+          "orderIndex": 1,
+          "required": true
+        }
+      ],
+      "answerRules": [
+        {
+          "answerRuleId": "hwangso-6-1-6-volume-split-p011-rule",
+          "answerFieldId": "hwangso-6-1-6-volume-split-p011-answer",
+          "answerType": "UNIT_VALUE",
+          "correctAnswerRaw": "60",
+          "normalizedAnswer": "60",
+          "unitType": "NONE"
+        }
+      ],
+      "sourceFigureImagePath": "figures/figure-03-0.png"
+    },
+    {
+      "problemId": "hwangso-6-1-6-volume-split-p012",
+      "chapterId": "hwangso-6-1-6-volume-split-ch03",
+      "problemType": "IMAGE_BASED",
+      "questionText": "예제 3-1 정답을 쓰세요.",
+      "imagePath": "images/p012-03-1.png",
+      "sourcePageImagePath": "images/p012-03-1.png",
+      "imageDisplayJson": {
+        "heightDp": 180,
+        "widthFraction": 1.0,
+        "align": "center",
+        "placement": "aboveText"
+      },
+      "orderIndex": 12,
+      "answerFields": [
+        {
+          "answerFieldId": "hwangso-6-1-6-volume-split-p012-answer",
+          "label": "정답",
+          "fieldType": "TEXT",
+          "orderIndex": 1,
+          "required": true
+        }
+      ],
+      "answerRules": [
+        {
+          "answerRuleId": "hwangso-6-1-6-volume-split-p012-rule",
+          "answerFieldId": "hwangso-6-1-6-volume-split-p012-answer",
+          "answerType": "UNIT_VALUE",
+          "correctAnswerRaw": "4200",
+          "normalizedAnswer": "4200",
+          "unitType": "NONE"
+        }
+      ],
+      "sourceFigureImagePath": "figures/figure-03-1.png"
+    },
+    {
+      "problemId": "hwangso-6-1-6-volume-split-p013",
+      "chapterId": "hwangso-6-1-6-volume-split-ch03",
+      "problemType": "IMAGE_BASED",
+      "questionText": "예제 3-2 정답을 쓰세요.",
+      "imagePath": "images/p013-03-2.png",
+      "sourcePageImagePath": "images/p013-03-2.png",
+      "imageDisplayJson": {
+        "heightDp": 180,
+        "widthFraction": 1.0,
+        "align": "center",
+        "placement": "aboveText"
+      },
+      "orderIndex": 13,
+      "answerFields": [
+        {
+          "answerFieldId": "hwangso-6-1-6-volume-split-p013-answer",
+          "label": "정답",
+          "fieldType": "TEXT",
+          "orderIndex": 1,
+          "required": true
+        }
+      ],
+      "answerRules": [
+        {
+          "answerRuleId": "hwangso-6-1-6-volume-split-p013-rule",
+          "answerFieldId": "hwangso-6-1-6-volume-split-p013-answer",
+          "answerType": "UNIT_VALUE",
+          "correctAnswerRaw": "8",
+          "normalizedAnswer": "8",
+          "unitType": "NONE"
+        }
+      ],
+      "sourceFigureImagePath": "figures/figure-03-2.png"
+    },
+    {
+      "problemId": "hwangso-6-1-6-volume-split-p014",
+      "chapterId": "hwangso-6-1-6-volume-split-ch03",
+      "problemType": "IMAGE_BASED",
+      "questionText": "예제 3-3 정답을 쓰세요.",
+      "imagePath": "images/p014-03-3.png",
+      "sourcePageImagePath": "images/p014-03-3.png",
+      "imageDisplayJson": {
+        "heightDp": 206,
+        "widthFraction": 1.0,
+        "align": "center",
+        "placement": "aboveText"
+      },
+      "orderIndex": 14,
+      "answerFields": [
+        {
+          "answerFieldId": "hwangso-6-1-6-volume-split-p014-answer",
+          "label": "정답",
+          "fieldType": "TEXT",
+          "orderIndex": 1,
+          "required": true
+        }
+      ],
+      "answerRules": [
+        {
+          "answerRuleId": "hwangso-6-1-6-volume-split-p014-rule",
+          "answerFieldId": "hwangso-6-1-6-volume-split-p014-answer",
+          "answerType": "UNIT_VALUE",
+          "correctAnswerRaw": "108",
+          "normalizedAnswer": "108",
+          "unitType": "NONE"
+        }
+      ],
+      "sourceFigureImagePath": "figures/figure-03-3.png"
+    },
+    {
+      "problemId": "hwangso-6-1-6-volume-split-p015",
+      "chapterId": "hwangso-6-1-6-volume-split-ch03",
+      "problemType": "IMAGE_BASED",
+      "questionText": "예제 3-4 정답을 쓰세요.",
+      "imagePath": "images/p015-03-4.png",
+      "sourcePageImagePath": "images/p015-03-4.png",
+      "imageDisplayJson": {
+        "heightDp": 202,
+        "widthFraction": 1.0,
+        "align": "center",
+        "placement": "aboveText"
+      },
+      "orderIndex": 15,
+      "answerFields": [
+        {
+          "answerFieldId": "hwangso-6-1-6-volume-split-p015-answer",
+          "label": "정답",
+          "fieldType": "TEXT",
+          "orderIndex": 1,
+          "required": true
+        }
+      ],
+      "answerRules": [
+        {
+          "answerRuleId": "hwangso-6-1-6-volume-split-p015-rule",
+          "answerFieldId": "hwangso-6-1-6-volume-split-p015-answer",
+          "answerType": "UNIT_VALUE",
+          "correctAnswerRaw": "24",
+          "normalizedAnswer": "24",
+          "unitType": "NONE"
+        }
+      ]
+    },
+    {
+      "problemId": "hwangso-6-1-6-volume-split-p016",
+      "chapterId": "hwangso-6-1-6-volume-split-ch04",
+      "problemType": "IMAGE_BASED",
+      "questionText": "개념탐구 4 정답을 쓰세요.",
+      "imagePath": "images/p016-04-0.png",
+      "sourcePageImagePath": "images/p016-04-0.png",
+      "imageDisplayJson": {
+        "heightDp": 245,
+        "widthFraction": 1.0,
+        "align": "center",
+        "placement": "aboveText"
+      },
+      "orderIndex": 16,
+      "answerFields": [
+        {
+          "answerFieldId": "hwangso-6-1-6-volume-split-p016-answer",
+          "label": "정답",
+          "fieldType": "TEXT",
+          "orderIndex": 1,
+          "required": true
+        }
+      ],
+      "answerRules": [
+        {
+          "answerRuleId": "hwangso-6-1-6-volume-split-p016-rule",
+          "answerFieldId": "hwangso-6-1-6-volume-split-p016-answer",
+          "answerType": "UNIT_VALUE",
+          "correctAnswerRaw": "32800",
+          "normalizedAnswer": "32800",
+          "unitType": "NONE"
+        }
+      ],
+      "sourceFigureImagePath": "figures/figure-04-0.png"
+    },
+    {
+      "problemId": "hwangso-6-1-6-volume-split-p017",
+      "chapterId": "hwangso-6-1-6-volume-split-ch04",
+      "problemType": "IMAGE_BASED",
+      "questionText": "예제 4-1 정답을 쓰세요.",
+      "imagePath": "images/p017-04-1.png",
+      "sourcePageImagePath": "images/p017-04-1.png",
+      "imageDisplayJson": {
+        "heightDp": 191,
+        "widthFraction": 1.0,
+        "align": "center",
+        "placement": "aboveText"
+      },
+      "orderIndex": 17,
+      "answerFields": [
+        {
+          "answerFieldId": "hwangso-6-1-6-volume-split-p017-answer",
+          "label": "정답",
+          "fieldType": "TEXT",
+          "orderIndex": 1,
+          "required": true
+        }
+      ],
+      "answerRules": [
+        {
+          "answerRuleId": "hwangso-6-1-6-volume-split-p017-rule",
+          "answerFieldId": "hwangso-6-1-6-volume-split-p017-answer",
+          "answerType": "UNIT_VALUE",
+          "correctAnswerRaw": "5",
+          "normalizedAnswer": "5",
+          "unitType": "NONE"
+        }
+      ],
+      "sourceFigureImagePath": "figures/figure-04-1.png"
+    },
+    {
+      "problemId": "hwangso-6-1-6-volume-split-p018",
+      "chapterId": "hwangso-6-1-6-volume-split-ch04",
+      "problemType": "IMAGE_BASED",
+      "questionText": "예제 4-2 정답을 쓰세요.",
+      "imagePath": "images/p018-04-2.png",
+      "sourcePageImagePath": "images/p018-04-2.png",
+      "imageDisplayJson": {
+        "heightDp": 195,
+        "widthFraction": 1.0,
+        "align": "center",
+        "placement": "aboveText"
+      },
+      "orderIndex": 18,
+      "answerFields": [
+        {
+          "answerFieldId": "hwangso-6-1-6-volume-split-p018-answer",
+          "label": "정답",
+          "fieldType": "TEXT",
+          "orderIndex": 1,
+          "required": true
+        }
+      ],
+      "answerRules": [
+        {
+          "answerRuleId": "hwangso-6-1-6-volume-split-p018-rule",
+          "answerFieldId": "hwangso-6-1-6-volume-split-p018-answer",
+          "answerType": "UNIT_VALUE",
+          "correctAnswerRaw": "8280",
+          "normalizedAnswer": "8280",
+          "unitType": "NONE"
+        }
+      ],
+      "sourceFigureImagePath": "figures/figure-04-2.png"
+    },
+    {
+      "problemId": "hwangso-6-1-6-volume-split-p019",
+      "chapterId": "hwangso-6-1-6-volume-split-ch04",
+      "problemType": "IMAGE_BASED",
+      "questionText": "예제 4-3 정답을 쓰세요.",
+      "imagePath": "images/p019-04-3.png",
+      "sourcePageImagePath": "images/p019-04-3.png",
+      "imageDisplayJson": {
+        "heightDp": 198,
+        "widthFraction": 1.0,
+        "align": "center",
+        "placement": "aboveText"
+      },
+      "orderIndex": 19,
+      "answerFields": [
+        {
+          "answerFieldId": "hwangso-6-1-6-volume-split-p019-answer",
+          "label": "정답",
+          "fieldType": "TEXT",
+          "orderIndex": 1,
+          "required": true
+        }
+      ],
+      "answerRules": [
+        {
+          "answerRuleId": "hwangso-6-1-6-volume-split-p019-rule",
+          "answerFieldId": "hwangso-6-1-6-volume-split-p019-answer",
+          "answerType": "UNIT_VALUE",
+          "correctAnswerRaw": "5880",
+          "normalizedAnswer": "5880",
+          "unitType": "NONE"
+        }
+      ],
+      "sourceFigureImagePath": "figures/figure-04-3.png"
+    },
+    {
+      "problemId": "hwangso-6-1-6-volume-split-p020",
+      "chapterId": "hwangso-6-1-6-volume-split-ch04",
+      "problemType": "IMAGE_BASED",
+      "questionText": "예제 4-4 정답을 쓰세요.",
+      "imagePath": "images/p020-04-4.png",
+      "sourcePageImagePath": "images/p020-04-4.png",
+      "imageDisplayJson": {
+        "heightDp": 210,
+        "widthFraction": 1.0,
+        "align": "center",
+        "placement": "aboveText"
+      },
+      "orderIndex": 20,
+      "answerFields": [
+        {
+          "answerFieldId": "hwangso-6-1-6-volume-split-p020-answer",
+          "label": "정답",
+          "fieldType": "TEXT",
+          "orderIndex": 1,
+          "required": true
+        }
+      ],
+      "answerRules": [
+        {
+          "answerRuleId": "hwangso-6-1-6-volume-split-p020-rule",
+          "answerFieldId": "hwangso-6-1-6-volume-split-p020-answer",
+          "answerType": "UNIT_VALUE",
+          "correctAnswerRaw": "540",
+          "normalizedAnswer": "540",
+          "unitType": "NONE"
+        }
+      ],
+      "sourceFigureImagePath": "figures/figure-04-4.png"
+    },
+    {
+      "problemId": "hwangso-6-1-6-volume-split-p021",
+      "chapterId": "hwangso-6-1-6-volume-split-ch05",
+      "problemType": "IMAGE_BASED",
+      "questionText": "개념탐구 5 정답을 쓰세요.",
+      "imagePath": "images/p021-05-0.png",
+      "sourcePageImagePath": "images/p021-05-0.png",
+      "imageDisplayJson": {
+        "heightDp": 241,
+        "widthFraction": 1.0,
+        "align": "center",
+        "placement": "aboveText"
+      },
+      "orderIndex": 21,
+      "answerFields": [
+        {
+          "answerFieldId": "hwangso-6-1-6-volume-split-p021-answer",
+          "label": "정답",
+          "fieldType": "TEXT",
+          "orderIndex": 1,
+          "required": true
+        }
+      ],
+      "answerRules": [
+        {
+          "answerRuleId": "hwangso-6-1-6-volume-split-p021-rule",
+          "answerFieldId": "hwangso-6-1-6-volume-split-p021-answer",
+          "answerType": "UNIT_VALUE",
+          "correctAnswerRaw": "2738",
+          "normalizedAnswer": "2738",
+          "unitType": "NONE"
+        }
+      ],
+      "sourceFigureImagePath": "figures/figure-05-0.png"
+    },
+    {
+      "problemId": "hwangso-6-1-6-volume-split-p022",
+      "chapterId": "hwangso-6-1-6-volume-split-ch05",
+      "problemType": "IMAGE_BASED",
+      "questionText": "예제 5-1 정답을 쓰세요.",
+      "imagePath": "images/p022-05-1.png",
+      "sourcePageImagePath": "images/p022-05-1.png",
+      "imageDisplayJson": {
+        "heightDp": 180,
+        "widthFraction": 1.0,
+        "align": "center",
+        "placement": "aboveText"
+      },
+      "orderIndex": 22,
+      "answerFields": [
+        {
+          "answerFieldId": "hwangso-6-1-6-volume-split-p022-answer",
+          "label": "정답",
+          "fieldType": "TEXT",
+          "orderIndex": 1,
+          "required": true
+        }
+      ],
+      "answerRules": [
+        {
+          "answerRuleId": "hwangso-6-1-6-volume-split-p022-rule",
+          "answerFieldId": "hwangso-6-1-6-volume-split-p022-answer",
+          "answerType": "UNIT_VALUE",
+          "correctAnswerRaw": "4.2",
+          "normalizedAnswer": "4.2",
+          "unitType": "NONE"
+        }
+      ],
+      "sourceFigureImagePath": "figures/figure-05-1.png"
+    },
+    {
+      "problemId": "hwangso-6-1-6-volume-split-p023",
+      "chapterId": "hwangso-6-1-6-volume-split-ch05",
+      "problemType": "IMAGE_BASED",
+      "questionText": "예제 5-2 정답을 쓰세요.",
+      "imagePath": "images/p023-05-2.png",
+      "sourcePageImagePath": "images/p023-05-2.png",
+      "imageDisplayJson": {
+        "heightDp": 180,
+        "widthFraction": 1.0,
+        "align": "center",
+        "placement": "aboveText"
+      },
+      "orderIndex": 23,
+      "answerFields": [
+        {
+          "answerFieldId": "hwangso-6-1-6-volume-split-p023-answer",
+          "label": "정답",
+          "fieldType": "TEXT",
+          "orderIndex": 1,
+          "required": true
+        }
+      ],
+      "answerRules": [
+        {
+          "answerRuleId": "hwangso-6-1-6-volume-split-p023-rule",
+          "answerFieldId": "hwangso-6-1-6-volume-split-p023-answer",
+          "answerType": "UNIT_VALUE",
+          "correctAnswerRaw": "3240",
+          "normalizedAnswer": "3240",
+          "unitType": "NONE"
+        }
+      ],
+      "sourceFigureImagePath": "figures/figure-05-2.png"
+    },
+    {
+      "problemId": "hwangso-6-1-6-volume-split-p024",
+      "chapterId": "hwangso-6-1-6-volume-split-ch05",
+      "problemType": "IMAGE_BASED",
+      "questionText": "예제 5-3 정답을 쓰세요.",
+      "imagePath": "images/p024-05-3.png",
+      "sourcePageImagePath": "images/p024-05-3.png",
+      "imageDisplayJson": {
+        "heightDp": 195,
+        "widthFraction": 1.0,
+        "align": "center",
+        "placement": "aboveText"
+      },
+      "orderIndex": 24,
+      "answerFields": [
+        {
+          "answerFieldId": "hwangso-6-1-6-volume-split-p024-answer",
+          "label": "정답",
+          "fieldType": "TEXT",
+          "orderIndex": 1,
+          "required": true
+        }
+      ],
+      "answerRules": [
+        {
+          "answerRuleId": "hwangso-6-1-6-volume-split-p024-rule",
+          "answerFieldId": "hwangso-6-1-6-volume-split-p024-answer",
+          "answerType": "UNIT_VALUE",
+          "correctAnswerRaw": "1001",
+          "normalizedAnswer": "1001",
+          "unitType": "NONE"
+        }
+      ],
+      "sourceFigureImagePath": "figures/figure-05-3.png"
+    },
+    {
+      "problemId": "hwangso-6-1-6-volume-split-p025",
+      "chapterId": "hwangso-6-1-6-volume-split-ch05",
+      "problemType": "IMAGE_BASED",
+      "questionText": "예제 5-4 정답을 쓰세요.",
+      "imagePath": "images/p025-05-4.png",
+      "sourcePageImagePath": "images/p025-05-4.png",
+      "imageDisplayJson": {
+        "heightDp": 183,
+        "widthFraction": 1.0,
+        "align": "center",
+        "placement": "aboveText"
+      },
+      "orderIndex": 25,
+      "answerFields": [
+        {
+          "answerFieldId": "hwangso-6-1-6-volume-split-p025-answer",
+          "label": "정답",
+          "fieldType": "TEXT",
+          "orderIndex": 1,
+          "required": true
+        }
+      ],
+      "answerRules": [
+        {
+          "answerRuleId": "hwangso-6-1-6-volume-split-p025-rule",
+          "answerFieldId": "hwangso-6-1-6-volume-split-p025-answer",
+          "answerType": "UNIT_VALUE",
+          "correctAnswerRaw": "280",
+          "normalizedAnswer": "280",
+          "unitType": "NONE"
+        }
+      ],
+      "sourceFigureImagePath": "figures/figure-05-4.png"
+    },
+    {
+      "problemId": "hwangso-6-1-6-volume-split-p026",
+      "chapterId": "hwangso-6-1-6-volume-split-ch06",
+      "problemType": "IMAGE_BASED",
+      "questionText": "개념탐구 6 정답을 쓰세요.",
+      "imagePath": "images/p026-06-0.png",
+      "sourcePageImagePath": "images/p026-06-0.png",
+      "imageDisplayJson": {
+        "heightDp": 180,
+        "widthFraction": 1.0,
+        "align": "center",
+        "placement": "aboveText"
+      },
+      "orderIndex": 26,
+      "answerFields": [
+        {
+          "answerFieldId": "hwangso-6-1-6-volume-split-p026-answer",
+          "label": "정답",
+          "fieldType": "TEXT",
+          "orderIndex": 1,
+          "required": true
+        }
+      ],
+      "answerRules": [
+        {
+          "answerRuleId": "hwangso-6-1-6-volume-split-p026-rule",
+          "answerFieldId": "hwangso-6-1-6-volume-split-p026-answer",
+          "answerType": "UNIT_VALUE",
+          "correctAnswerRaw": "20",
+          "normalizedAnswer": "20",
+          "unitType": "NONE"
+        }
+      ]
+    },
+    {
+      "problemId": "hwangso-6-1-6-volume-split-p027",
+      "chapterId": "hwangso-6-1-6-volume-split-ch06",
+      "problemType": "IMAGE_BASED",
+      "questionText": "예제 6-1 정답을 쓰세요.",
+      "imagePath": "images/p027-06-1.png",
+      "sourcePageImagePath": "images/p027-06-1.png",
+      "imageDisplayJson": {
+        "heightDp": 195,
+        "widthFraction": 1.0,
+        "align": "center",
+        "placement": "aboveText"
+      },
+      "orderIndex": 27,
+      "answerFields": [
+        {
+          "answerFieldId": "hwangso-6-1-6-volume-split-p027-answer",
+          "label": "정답",
+          "fieldType": "TEXT",
+          "orderIndex": 1,
+          "required": true
+        }
+      ],
+      "answerRules": [
+        {
+          "answerRuleId": "hwangso-6-1-6-volume-split-p027-rule",
+          "answerFieldId": "hwangso-6-1-6-volume-split-p027-answer",
+          "answerType": "UNIT_VALUE",
+          "correctAnswerRaw": "252",
+          "normalizedAnswer": "252",
+          "unitType": "NONE"
+        }
+      ],
+      "sourceFigureImagePath": "figures/figure-06-1.png"
+    },
+    {
+      "problemId": "hwangso-6-1-6-volume-split-p028",
+      "chapterId": "hwangso-6-1-6-volume-split-ch06",
+      "problemType": "IMAGE_BASED",
+      "questionText": "예제 6-2 정답을 쓰세요.",
+      "imagePath": "images/p028-06-2.png",
+      "sourcePageImagePath": "images/p028-06-2.png",
+      "imageDisplayJson": {
+        "heightDp": 180,
+        "widthFraction": 1.0,
+        "align": "center",
+        "placement": "aboveText"
+      },
+      "orderIndex": 28,
+      "answerFields": [
+        {
+          "answerFieldId": "hwangso-6-1-6-volume-split-p028-answer",
+          "label": "정답",
+          "fieldType": "TEXT",
+          "orderIndex": 1,
+          "required": true
+        }
+      ],
+      "answerRules": [
+        {
+          "answerRuleId": "hwangso-6-1-6-volume-split-p028-rule",
+          "answerFieldId": "hwangso-6-1-6-volume-split-p028-answer",
+          "answerType": "UNIT_VALUE",
+          "correctAnswerRaw": "672",
+          "normalizedAnswer": "672",
+          "unitType": "NONE"
+        }
+      ],
+      "sourceFigureImagePath": "figures/figure-06-2.png"
+    },
+    {
+      "problemId": "hwangso-6-1-6-volume-split-p029",
+      "chapterId": "hwangso-6-1-6-volume-split-ch06",
+      "problemType": "IMAGE_BASED",
+      "questionText": "예제 6-3 정답을 쓰세요.",
+      "imagePath": "images/p029-06-3.png",
+      "sourcePageImagePath": "images/p029-06-3.png",
+      "imageDisplayJson": {
+        "heightDp": 180,
+        "widthFraction": 1.0,
+        "align": "center",
+        "placement": "aboveText"
+      },
+      "orderIndex": 29,
+      "answerFields": [
+        {
+          "answerFieldId": "hwangso-6-1-6-volume-split-p029-answer",
+          "label": "정답",
+          "fieldType": "TEXT",
+          "orderIndex": 1,
+          "required": true
+        }
+      ],
+      "answerRules": [
+        {
+          "answerRuleId": "hwangso-6-1-6-volume-split-p029-rule",
+          "answerFieldId": "hwangso-6-1-6-volume-split-p029-answer",
+          "answerType": "UNIT_VALUE",
+          "correctAnswerRaw": "8",
+          "normalizedAnswer": "8",
+          "unitType": "NONE"
+        }
+      ]
+    },
+    {
+      "problemId": "hwangso-6-1-6-volume-split-p030",
+      "chapterId": "hwangso-6-1-6-volume-split-ch06",
+      "problemType": "IMAGE_BASED",
+      "questionText": "예제 6-4 정답을 쓰세요.",
+      "imagePath": "images/p030-06-4.png",
+      "sourcePageImagePath": "images/p030-06-4.png",
+      "imageDisplayJson": {
+        "heightDp": 183,
+        "widthFraction": 1.0,
+        "align": "center",
+        "placement": "aboveText"
+      },
+      "orderIndex": 30,
+      "answerFields": [
+        {
+          "answerFieldId": "hwangso-6-1-6-volume-split-p030-answer",
+          "label": "정답",
+          "fieldType": "TEXT",
+          "orderIndex": 1,
+          "required": true
+        }
+      ],
+      "answerRules": [
+        {
+          "answerRuleId": "hwangso-6-1-6-volume-split-p030-rule",
+          "answerFieldId": "hwangso-6-1-6-volume-split-p030-answer",
+          "answerType": "UNIT_VALUE",
+          "correctAnswerRaw": "192",
+          "normalizedAnswer": "192",
+          "unitType": "NONE"
+        }
+      ],
+      "sourceFigureImagePath": "figures/figure-06-4.png"
+    },
+    {
+      "problemId": "hwangso-6-1-6-volume-split-p031",
+      "chapterId": "hwangso-6-1-6-volume-split-ch07",
+      "problemType": "IMAGE_BASED",
+      "questionText": "개념탐구 7 정답을 쓰세요.",
+      "imagePath": "images/p031-07-0.png",
+      "sourcePageImagePath": "images/p031-07-0.png",
+      "imageDisplayJson": {
+        "heightDp": 249,
+        "widthFraction": 1.0,
+        "align": "center",
+        "placement": "aboveText"
+      },
+      "orderIndex": 31,
+      "answerFields": [
+        {
+          "answerFieldId": "hwangso-6-1-6-volume-split-p031-answer",
+          "label": "정답",
+          "fieldType": "TEXT",
+          "orderIndex": 1,
+          "required": true
+        }
+      ],
+      "answerRules": [
+        {
+          "answerRuleId": "hwangso-6-1-6-volume-split-p031-rule",
+          "answerFieldId": "hwangso-6-1-6-volume-split-p031-answer",
+          "answerType": "UNIT_VALUE",
+          "correctAnswerRaw": "(1) 9, (2) 7",
+          "normalizedAnswer": "(1) 9, (2) 7",
+          "unitType": "NONE"
+        }
+      ]
+    },
+    {
+      "problemId": "hwangso-6-1-6-volume-split-p032",
+      "chapterId": "hwangso-6-1-6-volume-split-ch07",
+      "problemType": "IMAGE_BASED",
+      "questionText": "예제 7-1 정답을 쓰세요.",
+      "imagePath": "images/p032-07-1.png",
+      "sourcePageImagePath": "images/p032-07-1.png",
+      "imageDisplayJson": {
+        "heightDp": 180,
+        "widthFraction": 1.0,
+        "align": "center",
+        "placement": "aboveText"
+      },
+      "orderIndex": 32,
+      "answerFields": [
+        {
+          "answerFieldId": "hwangso-6-1-6-volume-split-p032-answer",
+          "label": "정답",
+          "fieldType": "TEXT",
+          "orderIndex": 1,
+          "required": true
+        }
+      ],
+      "answerRules": [
+        {
+          "answerRuleId": "hwangso-6-1-6-volume-split-p032-rule",
+          "answerFieldId": "hwangso-6-1-6-volume-split-p032-answer",
+          "answerType": "UNIT_VALUE",
+          "correctAnswerRaw": "ㄷ, ㄴ, ㄱ, ㄹ",
+          "normalizedAnswer": "ㄷ, ㄴ, ㄱ, ㄹ",
+          "unitType": "NONE"
+        }
+      ]
+    },
+    {
+      "problemId": "hwangso-6-1-6-volume-split-p033",
+      "chapterId": "hwangso-6-1-6-volume-split-ch07",
+      "problemType": "IMAGE_BASED",
+      "questionText": "예제 7-2 정답을 쓰세요.",
+      "imagePath": "images/p033-07-2.png",
+      "sourcePageImagePath": "images/p033-07-2.png",
+      "imageDisplayJson": {
+        "heightDp": 180,
+        "widthFraction": 1.0,
+        "align": "center",
+        "placement": "aboveText"
+      },
+      "orderIndex": 33,
+      "answerFields": [
+        {
+          "answerFieldId": "hwangso-6-1-6-volume-split-p033-answer",
+          "label": "정답",
+          "fieldType": "TEXT",
+          "orderIndex": 1,
+          "required": true
+        }
+      ],
+      "answerRules": [
+        {
+          "answerRuleId": "hwangso-6-1-6-volume-split-p033-rule",
+          "answerFieldId": "hwangso-6-1-6-volume-split-p033-answer",
+          "answerType": "UNIT_VALUE",
+          "correctAnswerRaw": "0.06",
+          "normalizedAnswer": "0.06",
+          "unitType": "NONE"
+        }
+      ]
+    },
+    {
+      "problemId": "hwangso-6-1-6-volume-split-p034",
+      "chapterId": "hwangso-6-1-6-volume-split-ch07",
+      "problemType": "IMAGE_BASED",
+      "questionText": "예제 7-3 정답을 쓰세요.",
+      "imagePath": "images/p034-07-3.png",
+      "sourcePageImagePath": "images/p034-07-3.png",
+      "imageDisplayJson": {
+        "heightDp": 195,
+        "widthFraction": 1.0,
+        "align": "center",
+        "placement": "aboveText"
+      },
+      "orderIndex": 34,
+      "answerFields": [
+        {
+          "answerFieldId": "hwangso-6-1-6-volume-split-p034-answer",
+          "label": "정답",
+          "fieldType": "TEXT",
+          "orderIndex": 1,
+          "required": true
+        }
+      ],
+      "answerRules": [
+        {
+          "answerRuleId": "hwangso-6-1-6-volume-split-p034-rule",
+          "answerFieldId": "hwangso-6-1-6-volume-split-p034-answer",
+          "answerType": "UNIT_VALUE",
+          "correctAnswerRaw": "4",
+          "normalizedAnswer": "4",
+          "unitType": "NONE"
+        }
+      ],
+      "sourceFigureImagePath": "figures/figure-07-3.png"
+    },
+    {
+      "problemId": "hwangso-6-1-6-volume-split-p035",
+      "chapterId": "hwangso-6-1-6-volume-split-ch07",
+      "problemType": "IMAGE_BASED",
+      "questionText": "예제 7-4 정답을 쓰세요.",
+      "imagePath": "images/p035-07-4.png",
+      "sourcePageImagePath": "images/p035-07-4.png",
+      "imageDisplayJson": {
+        "heightDp": 180,
+        "widthFraction": 1.0,
+        "align": "center",
+        "placement": "aboveText"
+      },
+      "orderIndex": 35,
+      "answerFields": [
+        {
+          "answerFieldId": "hwangso-6-1-6-volume-split-p035-answer",
+          "label": "정답",
+          "fieldType": "TEXT",
+          "orderIndex": 1,
+          "required": true
+        }
+      ],
+      "answerRules": [
+        {
+          "answerRuleId": "hwangso-6-1-6-volume-split-p035-rule",
+          "answerFieldId": "hwangso-6-1-6-volume-split-p035-answer",
+          "answerType": "UNIT_VALUE",
+          "correctAnswerRaw": "1",
+          "normalizedAnswer": "1",
+          "unitType": "NONE"
+        }
+      ],
+      "sourceFigureImagePath": "figures/figure-07-4.png"
+    },
+    {
+      "problemId": "hwangso-6-1-6-volume-split-p036",
+      "chapterId": "hwangso-6-1-6-volume-split-ch08",
+      "problemType": "IMAGE_BASED",
+      "questionText": "개념탐구 8 정답을 쓰세요.",
+      "imagePath": "images/p036-08-0.png",
+      "sourcePageImagePath": "images/p036-08-0.png",
+      "imageDisplayJson": {
+        "heightDp": 284,
+        "widthFraction": 1.0,
+        "align": "center",
+        "placement": "aboveText"
+      },
+      "orderIndex": 36,
+      "answerFields": [
+        {
+          "answerFieldId": "hwangso-6-1-6-volume-split-p036-answer",
+          "label": "정답",
+          "fieldType": "TEXT",
+          "orderIndex": 1,
+          "required": true
+        }
+      ],
+      "answerRules": [
+        {
+          "answerRuleId": "hwangso-6-1-6-volume-split-p036-rule",
+          "answerFieldId": "hwangso-6-1-6-volume-split-p036-answer",
+          "answerType": "UNIT_VALUE",
+          "correctAnswerRaw": "18",
+          "normalizedAnswer": "18",
+          "unitType": "NONE"
+        }
+      ],
+      "sourceFigureImagePath": "figures/figure-08-0.png"
+    },
+    {
+      "problemId": "hwangso-6-1-6-volume-split-p037",
+      "chapterId": "hwangso-6-1-6-volume-split-ch08",
+      "problemType": "IMAGE_BASED",
+      "questionText": "예제 8-1 정답을 쓰세요.",
+      "imagePath": "images/p037-08-1.png",
+      "sourcePageImagePath": "images/p037-08-1.png",
+      "imageDisplayJson": {
+        "heightDp": 198,
+        "widthFraction": 1.0,
+        "align": "center",
+        "placement": "aboveText"
+      },
+      "orderIndex": 37,
+      "answerFields": [
+        {
+          "answerFieldId": "hwangso-6-1-6-volume-split-p037-answer",
+          "label": "정답",
+          "fieldType": "TEXT",
+          "orderIndex": 1,
+          "required": true
+        }
+      ],
+      "answerRules": [
+        {
+          "answerRuleId": "hwangso-6-1-6-volume-split-p037-rule",
+          "answerFieldId": "hwangso-6-1-6-volume-split-p037-answer",
+          "answerType": "UNIT_VALUE",
+          "correctAnswerRaw": "7",
+          "normalizedAnswer": "7",
+          "unitType": "NONE"
+        }
+      ],
+      "sourceFigureImagePath": "figures/figure-08-1.png"
+    },
+    {
+      "problemId": "hwangso-6-1-6-volume-split-p038",
+      "chapterId": "hwangso-6-1-6-volume-split-ch08",
+      "problemType": "IMAGE_BASED",
+      "questionText": "예제 8-2 정답을 쓰세요.",
+      "imagePath": "images/p038-08-2.png",
+      "sourcePageImagePath": "images/p038-08-2.png",
+      "imageDisplayJson": {
+        "heightDp": 238,
+        "widthFraction": 1.0,
+        "align": "center",
+        "placement": "aboveText"
+      },
+      "orderIndex": 38,
+      "answerFields": [
+        {
+          "answerFieldId": "hwangso-6-1-6-volume-split-p038-answer",
+          "label": "정답",
+          "fieldType": "TEXT",
+          "orderIndex": 1,
+          "required": true
+        }
+      ],
+      "answerRules": [
+        {
+          "answerRuleId": "hwangso-6-1-6-volume-split-p038-rule",
+          "answerFieldId": "hwangso-6-1-6-volume-split-p038-answer",
+          "answerType": "UNIT_VALUE",
+          "correctAnswerRaw": "4.2",
+          "normalizedAnswer": "4.2",
+          "unitType": "NONE"
+        }
+      ],
+      "sourceFigureImagePath": "figures/figure-08-2.png"
+    },
+    {
+      "problemId": "hwangso-6-1-6-volume-split-p039",
+      "chapterId": "hwangso-6-1-6-volume-split-ch08",
+      "problemType": "IMAGE_BASED",
+      "questionText": "예제 8-3 정답을 쓰세요.",
+      "imagePath": "images/p039-08-3.png",
+      "sourcePageImagePath": "images/p039-08-3.png",
+      "imageDisplayJson": {
+        "heightDp": 202,
+        "widthFraction": 1.0,
+        "align": "center",
+        "placement": "aboveText"
+      },
+      "orderIndex": 39,
+      "answerFields": [
+        {
+          "answerFieldId": "hwangso-6-1-6-volume-split-p039-answer",
+          "label": "정답",
+          "fieldType": "TEXT",
+          "orderIndex": 1,
+          "required": true
+        }
+      ],
+      "answerRules": [
+        {
+          "answerRuleId": "hwangso-6-1-6-volume-split-p039-rule",
+          "answerFieldId": "hwangso-6-1-6-volume-split-p039-answer",
+          "answerType": "UNIT_VALUE",
+          "correctAnswerRaw": "2.17",
+          "normalizedAnswer": "2.17",
+          "unitType": "NONE"
+        }
+      ],
+      "sourceFigureImagePath": "figures/figure-08-3.png"
+    },
+    {
+      "problemId": "hwangso-6-1-6-volume-split-p040",
+      "chapterId": "hwangso-6-1-6-volume-split-ch09",
+      "problemType": "IMAGE_BASED",
+      "questionText": "개념탐구 9 정답을 쓰세요.",
+      "imagePath": "images/p040-09-0.png",
+      "sourcePageImagePath": "images/p040-09-0.png",
+      "imageDisplayJson": {
+        "heightDp": 300,
+        "widthFraction": 1.0,
+        "align": "center",
+        "placement": "aboveText"
+      },
+      "orderIndex": 40,
+      "answerFields": [
+        {
+          "answerFieldId": "hwangso-6-1-6-volume-split-p040-answer",
+          "label": "정답",
+          "fieldType": "TEXT",
+          "orderIndex": 1,
+          "required": true
+        }
+      ],
+      "answerRules": [
+        {
+          "answerRuleId": "hwangso-6-1-6-volume-split-p040-rule",
+          "answerFieldId": "hwangso-6-1-6-volume-split-p040-answer",
+          "answerType": "UNIT_VALUE",
+          "correctAnswerRaw": "2.7",
+          "normalizedAnswer": "2.7",
+          "unitType": "NONE"
+        }
+      ],
+      "sourceFigureImagePath": "figures/figure-09-0.png"
+    },
+    {
+      "problemId": "hwangso-6-1-6-volume-split-p041",
+      "chapterId": "hwangso-6-1-6-volume-split-ch09",
+      "problemType": "IMAGE_BASED",
+      "questionText": "예제 9-1 정답을 쓰세요.",
+      "imagePath": "images/p041-09-1.png",
+      "sourcePageImagePath": "images/p041-09-1.png",
+      "imageDisplayJson": {
+        "heightDp": 195,
+        "widthFraction": 1.0,
+        "align": "center",
+        "placement": "aboveText"
+      },
+      "orderIndex": 41,
+      "answerFields": [
+        {
+          "answerFieldId": "hwangso-6-1-6-volume-split-p041-answer",
+          "label": "정답",
+          "fieldType": "TEXT",
+          "orderIndex": 1,
+          "required": true
+        }
+      ],
+      "answerRules": [
+        {
+          "answerRuleId": "hwangso-6-1-6-volume-split-p041-rule",
+          "answerFieldId": "hwangso-6-1-6-volume-split-p041-answer",
+          "answerType": "UNIT_VALUE",
+          "correctAnswerRaw": "2620",
+          "normalizedAnswer": "2620",
+          "unitType": "NONE"
+        }
+      ],
+      "sourceFigureImagePath": "figures/figure-09-1.png"
+    },
+    {
+      "problemId": "hwangso-6-1-6-volume-split-p042",
+      "chapterId": "hwangso-6-1-6-volume-split-ch09",
+      "problemType": "IMAGE_BASED",
+      "questionText": "예제 9-2 정답을 쓰세요.",
+      "imagePath": "images/p042-09-2.png",
+      "sourcePageImagePath": "images/p042-09-2.png",
+      "imageDisplayJson": {
+        "heightDp": 265,
+        "widthFraction": 1.0,
+        "align": "center",
+        "placement": "aboveText"
+      },
+      "orderIndex": 42,
+      "answerFields": [
+        {
+          "answerFieldId": "hwangso-6-1-6-volume-split-p042-answer",
+          "label": "정답",
+          "fieldType": "TEXT",
+          "orderIndex": 1,
+          "required": true
+        }
+      ],
+      "answerRules": [
+        {
+          "answerRuleId": "hwangso-6-1-6-volume-split-p042-rule",
+          "answerFieldId": "hwangso-6-1-6-volume-split-p042-answer",
+          "answerType": "UNIT_VALUE",
+          "correctAnswerRaw": "8.25",
+          "normalizedAnswer": "8.25",
+          "unitType": "NONE"
+        }
+      ],
+      "sourceFigureImagePath": "figures/figure-09-2.png"
+    },
+    {
+      "problemId": "hwangso-6-1-6-volume-split-p043",
+      "chapterId": "hwangso-6-1-6-volume-split-ch09",
+      "problemType": "IMAGE_BASED",
+      "questionText": "예제 9-3 정답을 쓰세요.",
+      "imagePath": "images/p043-09-3.png",
+      "sourcePageImagePath": "images/p043-09-3.png",
+      "imageDisplayJson": {
+        "heightDp": 245,
+        "widthFraction": 1.0,
+        "align": "center",
+        "placement": "aboveText"
+      },
+      "orderIndex": 43,
+      "answerFields": [
+        {
+          "answerFieldId": "hwangso-6-1-6-volume-split-p043-answer",
+          "label": "정답",
+          "fieldType": "TEXT",
+          "orderIndex": 1,
+          "required": true
+        }
+      ],
+      "answerRules": [
+        {
+          "answerRuleId": "hwangso-6-1-6-volume-split-p043-rule",
+          "answerFieldId": "hwangso-6-1-6-volume-split-p043-answer",
+          "answerType": "UNIT_VALUE",
+          "correctAnswerRaw": "444",
+          "normalizedAnswer": "444",
+          "unitType": "NONE"
+        }
+      ],
+      "sourceFigureImagePath": "figures/figure-09-3.png"
+    },
+    {
+      "problemId": "hwangso-6-1-6-volume-split-p044",
+      "chapterId": "hwangso-6-1-6-volume-split-ch10",
+      "problemType": "IMAGE_BASED",
+      "questionText": "개념탐구 10 정답을 쓰세요.",
+      "imagePath": "images/p044-10-0.png",
+      "sourcePageImagePath": "images/p044-10-0.png",
+      "imageDisplayJson": {
+        "heightDp": 378,
+        "widthFraction": 1.0,
+        "align": "center",
+        "placement": "aboveText"
+      },
+      "orderIndex": 44,
+      "answerFields": [
+        {
+          "answerFieldId": "hwangso-6-1-6-volume-split-p044-answer",
+          "label": "정답",
+          "fieldType": "TEXT",
+          "orderIndex": 1,
+          "required": true
+        }
+      ],
+      "answerRules": [
+        {
+          "answerRuleId": "hwangso-6-1-6-volume-split-p044-rule",
+          "answerFieldId": "hwangso-6-1-6-volume-split-p044-answer",
+          "answerType": "UNIT_VALUE",
+          "correctAnswerRaw": "(1) 6, (2) 21, (3) 16 2/13",
+          "normalizedAnswer": "(1) 6, (2) 21, (3) 16 2/13",
+          "unitType": "NONE"
+        }
+      ],
+      "sourceFigureImagePath": "figures/figure-10-0.png"
+    },
+    {
+      "problemId": "hwangso-6-1-6-volume-split-p045",
+      "chapterId": "hwangso-6-1-6-volume-split-ch10",
+      "problemType": "IMAGE_BASED",
+      "questionText": "예제 10-1 정답을 쓰세요.",
+      "imagePath": "images/p045-10-1.png",
+      "sourcePageImagePath": "images/p045-10-1.png",
+      "imageDisplayJson": {
+        "heightDp": 312,
+        "widthFraction": 1.0,
+        "align": "center",
+        "placement": "aboveText"
+      },
+      "orderIndex": 45,
+      "answerFields": [
+        {
+          "answerFieldId": "hwangso-6-1-6-volume-split-p045-answer",
+          "label": "정답",
+          "fieldType": "TEXT",
+          "orderIndex": 1,
+          "required": true
+        }
+      ],
+      "answerRules": [
+        {
+          "answerRuleId": "hwangso-6-1-6-volume-split-p045-rule",
+          "answerFieldId": "hwangso-6-1-6-volume-split-p045-answer",
+          "answerType": "UNIT_VALUE",
+          "correctAnswerRaw": "(1) 1:40, (2) 100",
+          "normalizedAnswer": "(1) 1:40, (2) 100",
+          "unitType": "NONE"
+        }
+      ],
+      "sourceFigureImagePath": "figures/figure-10-1.png"
+    },
+    {
+      "problemId": "hwangso-6-1-6-volume-split-p046",
+      "chapterId": "hwangso-6-1-6-volume-split-ch10",
+      "problemType": "IMAGE_BASED",
+      "questionText": "예제 10-2 정답을 쓰세요.",
+      "imagePath": "images/p046-10-2.png",
+      "sourcePageImagePath": "images/p046-10-2.png",
+      "imageDisplayJson": {
+        "heightDp": 206,
+        "widthFraction": 1.0,
+        "align": "center",
+        "placement": "aboveText"
+      },
+      "orderIndex": 46,
+      "answerFields": [
+        {
+          "answerFieldId": "hwangso-6-1-6-volume-split-p046-answer",
+          "label": "정답",
+          "fieldType": "TEXT",
+          "orderIndex": 1,
+          "required": true
+        }
+      ],
+      "answerRules": [
+        {
+          "answerRuleId": "hwangso-6-1-6-volume-split-p046-rule",
+          "answerFieldId": "hwangso-6-1-6-volume-split-p046-answer",
+          "answerType": "UNIT_VALUE",
+          "correctAnswerRaw": "40",
+          "normalizedAnswer": "40",
+          "unitType": "NONE"
+        }
+      ],
+      "sourceFigureImagePath": "figures/figure-10-2.png"
+    },
+    {
+      "problemId": "hwangso-6-1-6-volume-split-p047",
+      "chapterId": "hwangso-6-1-6-volume-split-ch10",
+      "problemType": "IMAGE_BASED",
+      "questionText": "예제 10-3 정답을 쓰세요.",
+      "imagePath": "images/p047-10-3.png",
+      "sourcePageImagePath": "images/p047-10-3.png",
+      "imageDisplayJson": {
+        "heightDp": 191,
+        "widthFraction": 1.0,
+        "align": "center",
+        "placement": "aboveText"
+      },
+      "orderIndex": 47,
+      "answerFields": [
+        {
+          "answerFieldId": "hwangso-6-1-6-volume-split-p047-answer",
+          "label": "정답",
+          "fieldType": "TEXT",
+          "orderIndex": 1,
+          "required": true
+        }
+      ],
+      "answerRules": [
+        {
+          "answerRuleId": "hwangso-6-1-6-volume-split-p047-rule",
+          "answerFieldId": "hwangso-6-1-6-volume-split-p047-answer",
+          "answerType": "UNIT_VALUE",
+          "correctAnswerRaw": "37.5",
+          "normalizedAnswer": "37.5",
+          "unitType": "NONE"
+        }
+      ],
+      "sourceFigureImagePath": "figures/figure-10-3.png"
+    }
+  ]
+}

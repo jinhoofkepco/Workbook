@@ -58,14 +58,14 @@ class SubmitPracticeAnswerUseCase(
             )
         }
 
-        val reachedLimit = !gradingResult.isCorrect && nextTryNumber >= maxTryCount
+        val reachedLimit = !gradingResult.isCorrect && !gradingResult.requiresManualReview && nextTryNumber >= maxTryCount
         val finalStatus = when {
             gradingResult.requiresManualReview -> FinalStatus.MANUAL_REVIEW_REQUIRED
             gradingResult.isCorrect -> FinalStatus.CORRECT
             reachedLimit -> FinalStatus.FAILED_AFTER_MAX_ATTEMPTS
             else -> FinalStatus.IN_PROGRESS
         }
-        val shouldQueueSimilar = !gradingResult.isCorrect
+        val shouldQueueSimilar = !gradingResult.isCorrect && !gradingResult.requiresManualReview
         val similarQueued = if (shouldQueueSimilar) {
             val reason = if (reachedLimit) "MAX_ATTEMPTS" else "WRONG"
             similarProblemQueueService.enqueueIfAllowed(problem, studentId, reason)

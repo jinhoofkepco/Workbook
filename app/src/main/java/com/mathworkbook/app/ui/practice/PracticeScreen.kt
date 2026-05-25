@@ -1,23 +1,29 @@
 package com.mathworkbook.app.ui.practice
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.GenericShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -30,34 +36,61 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType as ImeKeyboardType
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.mathworkbook.app.core.database.AnswerFieldEntity
+import com.mathworkbook.app.core.database.AttemptInputLogEntity
 import com.mathworkbook.app.core.database.ChapterEntity
+import com.mathworkbook.app.core.database.PracticeAttemptEntity
 import com.mathworkbook.app.core.database.WorkbookEntity
 import com.mathworkbook.app.core.domain.FinalStatus
 import com.mathworkbook.app.core.domain.AnswerFieldType
 import com.mathworkbook.app.core.domain.ProblemType
 import com.mathworkbook.app.ui.components.SolutionVectorPreview
+import com.mathworkbook.app.ui.components.SolutionVectorOverlay
 import com.mathworkbook.app.ui.components.HandwritingCanvas
-import com.mathworkbook.app.ui.components.MaskableProblemImage
 import com.mathworkbook.app.ui.components.ProblemWorksheetBackground
+import com.mathworkbook.app.ui.components.ProblemWorksheetFooterOverlay
+import com.mathworkbook.app.ui.components.WorksheetImageAdjustmentMode
+import com.mathworkbook.app.ui.components.WorksheetImageTransform
+import com.mathworkbook.app.ui.components.estimateWorksheetContentHeightDp
+import com.mathworkbook.app.ui.components.parseWorksheetImageTransform
+import com.mathworkbook.app.ui.components.parseProblemTeacherNotes
 import com.mathworkbook.app.ui.components.rememberHandwritingState
+import kotlinx.coroutines.delay
+import org.json.JSONArray
 import org.json.JSONObject
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import kotlin.math.min
+
+private enum class AnswerInputMode {
+    WorksheetInline,
+    FixedBottomCustomKeypad
+}
+
+// Switch this to FixedBottomCustomKeypad to restore the previous bottom answer area.
+private val answerInputMode = AnswerInputMode.WorksheetInline
 
 @Composable
 fun PracticeScreen(
     viewModel: PracticeViewModel,
     isMasterMode: Boolean = false,
+    questionTextSizeSp: Int = 24,
     initialWorkbookId: String? = null,
     initialChapterId: String? = null,
     initialProblemId: String? = null,
@@ -66,8 +99,15 @@ fun PracticeScreen(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val handwritingState = rememberHandwritingState()
+    val focusManager = LocalFocusManager.current
+    var imageAdjustmentMode by remember { mutableStateOf(WorksheetImageAdjustmentMode.None) }
+    var imageTransformDraft by remember { mutableStateOf(WorksheetImageTransform()) }
 
-    LaunchedEffect(initialWorkbookId, initialChapterId, initialProblemId) {
+    LaunchedEffect(isMasterMode, initialWorkbookId, initialChapterId, initialProblemId) {
+        viewModel.setMasterMode(
+            enabled = isMasterMode,
+            reloadCurrent = initialWorkbookId == null || initialChapterId == null
+        )
         if (initialWorkbookId != null && initialChapterId != null) {
             if (initialProblemId != null) {
                 viewModel.openProblem(initialWorkbookId, initialChapterId, initialProblemId)
@@ -78,8 +118,24 @@ fun PracticeScreen(
         }
     }
 
-    LaunchedEffect(state.currentProblem?.problemId) {
-        handwritingState.clear()
+    LaunchedEffect(isMasterMode, state.currentProblem?.problemId, state.masterNoteVectorJson) {
+        if (isMasterMode) {
+            handwritingState.loadFromVectorJson(state.masterNoteVectorJson)
+        } else {
+            handwritingState.clear()
+        }
+    }
+
+    LaunchedEffect(state.currentProblem?.problemId, state.currentProblem?.imageCropRectJson) {
+        imageAdjustmentMode = WorksheetImageAdjustmentMode.None
+        imageTransformDraft = parseWorksheetImageTransform(state.currentProblem?.imageCropRectJson)
+    }
+
+    LaunchedEffect(state.feedback) {
+        if (state.feedback != null) {
+            delay(3_000L)
+            viewModel.clearFeedback()
+        }
     }
 
     Surface(modifier = modifier.fillMaxSize(), color = Color(0xFFF7F8FA)) {
@@ -108,14 +164,93 @@ fun PracticeScreen(
                     state = state,
                     viewModel = viewModel,
                     isMasterMode = isMasterMode,
+                    questionTextSizeSp = questionTextSizeSp,
                     solutionJson = handwritingState::toVectorJson,
+                    imageAdjustmentMode = imageAdjustmentMode,
+                    onStartImageAdjust = {
+                        imageTransformDraft = parseWorksheetImageTransform(state.currentProblem?.imageCropRectJson)
+                        imageAdjustmentMode = WorksheetImageAdjustmentMode.Image
+                    },
+                    onStartFrameAdjust = {
+                        imageTransformDraft = parseWorksheetImageTransform(state.currentProblem?.imageCropRectJson)
+                        imageAdjustmentMode = WorksheetImageAdjustmentMode.Frame
+                    },
+                    onConfirmImageAdjust = {
+                        viewModel.updateCurrentProblemImageTransform(
+                            scale = imageTransformDraft.scale,
+                            offsetX = imageTransformDraft.offsetX,
+                            offsetY = imageTransformDraft.offsetY,
+                            heightDp = imageTransformDraft.heightDp
+                        )
+                        imageAdjustmentMode = WorksheetImageAdjustmentMode.None
+                    },
                     handwriting = {
+                        val worksheetContentHeight = estimateWorksheetContentHeightDp(state.currentProblem).dp
                         HandwritingCanvas(
                             state = handwritingState,
                             modifier = Modifier.fillMaxSize(),
-                            contentHeight = 1320.dp,
+                            contentHeight = worksheetContentHeight,
+                            inputOverlayEnabled = imageAdjustmentMode == WorksheetImageAdjustmentMode.None,
+                            toolbarLeadingContent = {
+                                ToolbarNavButton(
+                                    text = "이전",
+                                    direction = NavDirection.Previous,
+                                    onClick = {
+                                        focusManager.clearFocus(force = true)
+                                        viewModel.movePrevious()
+                                    }
+                                )
+                                OutlinedButton(
+                                    onClick = viewModel::showHint,
+                                    modifier = Modifier.height(40.dp)
+                                ) {
+                                    Text("힌트")
+                                }
+                            },
+                            toolbarTrailingContent = {
+                                ToolbarNavButton(
+                                    text = "다음",
+                                    direction = NavDirection.Next,
+                                    onClick = {
+                                        focusManager.clearFocus(force = true)
+                                        viewModel.moveNext(clearFeedback = true)
+                                    }
+                                )
+                            },
                             backgroundContent = {
-                                ProblemWorksheetBackground(problem = state.currentProblem)
+                                ProblemWorksheetBackground(
+                                    problem = state.currentProblem,
+                                    questionTextSizeSp = questionTextSizeSp,
+                                    onImageBoundsChanged = handwritingState::updateImageBounds,
+                                    imageAdjustmentMode = if (isMasterMode) imageAdjustmentMode else WorksheetImageAdjustmentMode.None,
+                                    imageTransformOverride = if (isMasterMode && imageAdjustmentMode != WorksheetImageAdjustmentMode.None) imageTransformDraft else null,
+                                    onImageTransformChanged = { imageTransformDraft = it }
+                                ) {
+                                    if (isMasterMode) {
+                                        MasterCorrectSolutionFooter(state)
+                                    } else if (answerInputMode == AnswerInputMode.FixedBottomCustomKeypad) {
+                                        StudentAnswerStamp(state)
+                                    }
+                                }
+                            },
+                            foregroundContent = {
+                                if (!isMasterMode && answerInputMode == AnswerInputMode.WorksheetInline) {
+                                    ProblemWorksheetFooterOverlay(
+                                        problem = state.currentProblem,
+                                        questionTextSizeSp = questionTextSizeSp,
+                                        modifier = Modifier.fillMaxSize()
+                                    ) {
+                                        AnswerArea(
+                                            state = state,
+                                            viewModel = viewModel,
+                                            onSubmit = { viewModel.submit(handwritingState.toVectorJson()) },
+                                            showCustomKeypad = false,
+                                            useSystemKeyboard = true,
+                                            showSubmittedAnswers = true,
+                                            modifier = Modifier.fillMaxWidth()
+                                        )
+                                    }
+                                }
                             }
                         )
                     }
@@ -212,9 +347,17 @@ private fun ProblemSolvingScreen(
     state: PracticeUiState,
     viewModel: PracticeViewModel,
     isMasterMode: Boolean,
+    questionTextSizeSp: Int,
     solutionJson: () -> String,
+    imageAdjustmentMode: WorksheetImageAdjustmentMode,
+    onStartImageAdjust: () -> Unit,
+    onStartFrameAdjust: () -> Unit,
+    onConfirmImageAdjust: () -> Unit,
     handwriting: @Composable () -> Unit
 ) {
+    val selectedStudentAttempt = state.selectedStudentAttempt()
+    val focusManager = LocalFocusManager.current
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -244,123 +387,521 @@ private fun ProblemSolvingScreen(
             )
         }
 
-        if (isMasterMode) {
-            ProblemCard(
-                state = state,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(0.35f)
-            )
-        }
-
         Card(
             modifier = Modifier
                 .fillMaxWidth()
-                .weight(if (isMasterMode) 0.65f else 1f),
+                .weight(1f),
             colors = CardDefaults.cardColors(containerColor = Color.White)
         ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(12.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                Text("풀이 및 답", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                Box(
+            Box(modifier = Modifier.fillMaxSize()) {
+                Column(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(1f)
+                        .fillMaxSize()
+                        .padding(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    if (isMasterMode) {
-                        SolutionVectorPreview(path = state.latestAttempt?.solutionImagePath, modifier = Modifier.fillMaxSize())
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f)
+                    ) {
+                    if (isMasterMode && selectedStudentAttempt != null) {
+                        StudentAttemptProblemView(
+                            state = state,
+                            questionTextSizeSp = questionTextSizeSp,
+                            attempt = selectedStudentAttempt,
+                            modifier = Modifier.fillMaxSize()
+                        )
                     } else {
                         handwriting()
-                        if (state.showCorrectMark) {
-                            CorrectCircleOverlay()
+                    }
+                    if (state.showCorrectMark && !isMasterMode) {
+                        CorrectCircleOverlay()
+                    }
+                    if (isMasterMode) {
+                        MasterAttemptButtons(
+                            attempts = state.attemptsForProblem,
+                            selectedAttemptId = state.selectedStudentAttemptId,
+                            onToggle = viewModel::toggleStudentAttempt,
+                            modifier = Modifier
+                                .align(Alignment.TopEnd)
+                                .padding(top = 58.dp, end = 18.dp)
+                        )
+                        selectedStudentAttempt?.let { attempt ->
+                            MasterAttemptInfoOverlay(
+                                attempt = attempt,
+                                modifier = Modifier
+                                    .align(Alignment.TopStart)
+                                    .padding(12.dp)
+                            )
+                        }
+                        if (selectedStudentAttempt != null) {
+                            ToolbarNavButton(
+                                text = "이전",
+                                direction = NavDirection.Previous,
+                                modifier = Modifier
+                                    .align(Alignment.TopStart)
+                                    .padding(top = 8.dp, start = 18.dp),
+                                onClick = {
+                                    focusManager.clearFocus(force = true)
+                                    viewModel.movePrevious()
+                                }
+                            )
+                            ToolbarNavButton(
+                                text = "다음",
+                                direction = NavDirection.Next,
+                                modifier = Modifier
+                                    .align(Alignment.TopEnd)
+                                    .padding(top = 8.dp, end = 18.dp),
+                                onClick = {
+                                    focusManager.clearFocus(force = true)
+                                    viewModel.moveNext(clearFeedback = true)
+                                }
+                            )
                         }
                     }
                 }
                 if (isMasterMode) {
-                    MasterPracticeReviewPanel(
-                        state = state,
-                        viewModel = viewModel,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                } else {
-                    AnswerArea(state = state, viewModel = viewModel, modifier = Modifier.fillMaxWidth())
-                }
-                state.feedback?.let {
-                    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)) {
-                        Text(
-                            text = it,
-                            modifier = Modifier.padding(10.dp),
-                            color = MaterialTheme.colorScheme.onSecondaryContainer
+                    if (selectedStudentAttempt == null) {
+                        MasterAnswerArea(
+                            state = state,
+                            viewModel = viewModel,
+                            modifier = Modifier.fillMaxWidth()
                         )
                     }
+                } else if (answerInputMode == AnswerInputMode.FixedBottomCustomKeypad) {
+                    AnswerArea(
+                        state = state,
+                        viewModel = viewModel,
+                        onSubmit = { viewModel.submit(solutionJson()) },
+                        showCustomKeypad = true,
+                        useSystemKeyboard = false,
+                        showSubmittedAnswers = false,
+                        modifier = Modifier.fillMaxWidth()
+                    )
                 }
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                    OutlinedButton(onClick = viewModel::movePrevious, modifier = Modifier.weight(1f)) {
-                        Text("이전")
+                if (isMasterMode) {
+                    if (selectedStudentAttempt == null) {
+                        MasterImageAdjustControls(
+                            mode = imageAdjustmentMode,
+                            onStartImage = onStartImageAdjust,
+                            onStartFrame = onStartFrameAdjust,
+                            onConfirm = onConfirmImageAdjust,
+                            modifier = Modifier.fillMaxWidth()
+                        )
                     }
-                    if (!isMasterMode) {
-                        OutlinedButton(onClick = viewModel::showHint, modifier = Modifier.weight(1f)) {
-                            Text("힌트")
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        if (selectedStudentAttempt != null) {
+                            OutlinedButton(
+                                onClick = { viewModel.deleteStudentAttempt(selectedStudentAttempt.attemptId) },
+                                modifier = Modifier.height(38.dp),
+                                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 0.dp)
+                            ) {
+                                Text("풀이 삭제")
+                            }
+                        } else {
+                            OutlinedButton(
+                                onClick = { viewModel.mergeMasterDrawingIntoProblemImage(solutionJson()) },
+                                modifier = Modifier.height(38.dp),
+                                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 0.dp)
+                            ) {
+                                Text("사진에 합쳐 저장")
+                            }
+                            Button(
+                                onClick = { viewModel.saveMasterNote(solutionJson()) },
+                                modifier = Modifier.height(38.dp),
+                                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 0.dp)
+                            ) {
+                                Text("노트 저장")
+                            }
                         }
-                        Button(onClick = { viewModel.submit(solutionJson()) }, modifier = Modifier.weight(1f)) {
-                            Text("제출")
-                        }
                     }
-                    Button(onClick = { viewModel.moveNext(clearFeedback = true) }, modifier = Modifier.weight(1f)) {
-                        Text("다음")
-                    }
+                }
+                }
+                state.feedback?.let { message ->
+                    PracticeFeedbackOverlay(
+                        message = message,
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .padding(
+                                start = 18.dp,
+                                end = 18.dp,
+                                bottom = if (isMasterMode) 72.dp else 112.dp
+                            )
+                    )
                 }
             }
         }
     }
 }
 
+private enum class NavDirection {
+    Previous,
+    Next
+}
+
+private val PreviousNavShape = GenericShape { size, _ ->
+    moveTo(0f, size.height / 2f)
+    lineTo(size.width * 0.20f, 0f)
+    lineTo(size.width, 0f)
+    lineTo(size.width, size.height)
+    lineTo(size.width * 0.20f, size.height)
+    close()
+}
+
+private val NextNavShape = GenericShape { size, _ ->
+    moveTo(0f, 0f)
+    lineTo(size.width * 0.80f, 0f)
+    lineTo(size.width, size.height / 2f)
+    lineTo(size.width * 0.80f, size.height)
+    lineTo(0f, size.height)
+    close()
+}
+
 @Composable
-private fun MasterPracticeReviewPanel(
+private fun ToolbarNavButton(
+    text: String,
+    direction: NavDirection,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    OutlinedButton(
+        onClick = onClick,
+        modifier = modifier.height(36.dp),
+        shape = if (direction == NavDirection.Previous) PreviousNavShape else NextNavShape,
+        border = BorderStroke(1.4.dp, Color(0xFF2563EB)),
+        colors = ButtonDefaults.outlinedButtonColors(
+            containerColor = Color(0xF2FFFFFF),
+            contentColor = Color(0xFF2563EB)
+        ),
+        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp)
+    ) {
+        Text(text)
+    }
+}
+
+@Composable
+private fun PracticeFeedbackOverlay(
+    message: String,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        modifier = modifier,
+        colors = CardDefaults.cardColors(containerColor = Color(0xEE111827)),
+        shape = RoundedCornerShape(8.dp)
+    ) {
+        Text(
+            text = message,
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 9.dp),
+            color = Color.White,
+            fontWeight = FontWeight.SemiBold,
+            style = MaterialTheme.typography.bodyMedium
+        )
+    }
+}
+
+@Composable
+private fun StudentAnswerStamp(state: PracticeUiState) {
+    val answerText = formatTypedAnswer(state)
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(44.dp),
+        contentAlignment = Alignment.CenterStart
+    ) {
+        if (answerText.isNotBlank()) {
+            Card(
+                border = BorderStroke(1.5.dp, Color(0xFF2563EB)),
+                colors = CardDefaults.cardColors(containerColor = Color(0xF2FFFFFF)),
+                shape = RoundedCornerShape(6.dp)
+            ) {
+                Text(
+                    text = "답: $answerText",
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
+                    color = Color(0xFF2563EB),
+                    fontWeight = FontWeight.Bold,
+                    style = MaterialTheme.typography.titleMedium
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun SubmittedAnswerHistory(
+    logs: List<AttemptInputLogEntity>,
+    fields: List<AnswerFieldEntity>,
+    currentPreview: String = "",
+    modifier: Modifier = Modifier
+) {
+    val submittedLines = submittedAnswerLines(logs, fields)
+    val preview = currentPreview
+        .trim()
+        .takeIf { it.isNotBlank() && it != submittedLines.lastOrNull()?.text }
+    Column(
+        modifier = modifier,
+        verticalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        submittedLines.forEach { line ->
+            SubmittedAnswerChip(text = line.text, crossedOut = !line.isCorrect)
+        }
+        preview?.let {
+            SubmittedAnswerChip(text = it, crossedOut = false)
+        }
+    }
+}
+
+@Composable
+private fun SubmittedAnswerChip(
+    text: String,
+    crossedOut: Boolean,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        modifier = modifier,
+        border = BorderStroke(1.5.dp, Color(0xFF2563EB)),
+        colors = CardDefaults.cardColors(containerColor = Color(0xF2FFFFFF)),
+        shape = RoundedCornerShape(6.dp)
+    ) {
+        Text(
+            text = "답 $text",
+            modifier = Modifier
+                .padding(horizontal = 12.dp, vertical = 8.dp)
+                .drawWithContent {
+                    drawContent()
+                    if (crossedOut) {
+                        val y = size.height / 2f
+                        drawLine(
+                            color = Color(0xFFE53935),
+                            start = Offset(0f, y),
+                            end = Offset(size.width, y),
+                            strokeWidth = 4.dp.toPx()
+                        )
+                    }
+                },
+            color = Color(0xFF2563EB),
+            fontWeight = FontWeight.Bold,
+            style = MaterialTheme.typography.titleMedium
+        )
+    }
+}
+
+private data class SubmittedAnswerLine(
+    val text: String,
+    val isCorrect: Boolean
+)
+
+@Composable
+private fun StudentAttemptProblemView(
+    state: PracticeUiState,
+    questionTextSizeSp: Int,
+    attempt: PracticeAttemptEntity,
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier
+            .background(Color(0xFFFAFAFA), RoundedCornerShape(8.dp))
+            .verticalScroll(rememberScrollState())
+    ) {
+        val worksheetContentHeight = estimateWorksheetContentHeightDp(state.currentProblem).dp
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(worksheetContentHeight)
+        ) {
+            Canvas(modifier = Modifier.fillMaxSize()) {
+                val lineGap = 36.dp.toPx()
+                var y = lineGap
+                while (y < size.height) {
+                    drawLine(
+                        color = Color(0xFFE5E7EB),
+                        start = Offset(0f, y),
+                        end = Offset(size.width, y),
+                        strokeWidth = 1.2f
+                    )
+                    y += lineGap
+                }
+            }
+            ProblemWorksheetBackground(
+                problem = state.currentProblem,
+                questionTextSizeSp = questionTextSizeSp,
+                modifier = Modifier.fillMaxSize()
+            )
+            SolutionVectorOverlay(
+                path = attempt.solutionImagePath,
+                modifier = Modifier.fillMaxSize()
+            )
+            ProblemWorksheetFooterOverlay(
+                problem = state.currentProblem,
+                questionTextSizeSp = questionTextSizeSp,
+                modifier = Modifier.fillMaxSize()
+            ) {
+                SubmittedAnswerHistory(
+                    logs = state.logsByAttempt[attempt.attemptId].orEmpty(),
+                    fields = state.fields,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun MasterAnswerArea(
     state: PracticeUiState,
     viewModel: PracticeViewModel,
     modifier: Modifier = Modifier
 ) {
-    val attempt = state.latestAttempt
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        if (attempt == null) {
-            Text("아직 학생 풀이 기록이 없습니다.", color = MaterialTheme.colorScheme.onSurfaceVariant)
-            return
+        Text("정답", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
+        if (state.currentProblem?.problemType == ProblemType.MULTIPLE_CHOICE) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                state.choices.forEach { choice ->
+                    FilterChip(
+                        selected = state.selectedChoiceIds.contains(choice.choiceId),
+                        onClick = { viewModel.toggleChoice(choice.choiceId) },
+                        label = { Text(choice.choiceText) }
+                    )
+                }
+            }
+        } else {
+            state.fields.forEach { field ->
+                val disabled = field.isDisabledForInput()
+                val fieldValue = if (disabled) {
+                    field.disabledDisplayValue()
+                } else {
+                    state.inputByField[field.answerFieldId].orEmpty()
+                }
+                if (!disabled) {
+                    InlineChoiceSelector(
+                        options = inlineChoiceOptionsFor(field, state.rules),
+                        currentValue = state.inputByField[field.answerFieldId].orEmpty(),
+                        onToggle = { option ->
+                            viewModel.updateInput(
+                                field.answerFieldId,
+                                toggleInlineChoiceAnswer(
+                                    currentValue = state.inputByField[field.answerFieldId].orEmpty(),
+                                    options = inlineChoiceOptionsFor(field, state.rules),
+                                    option = option
+                                )
+                            )
+                        }
+                    )
+                }
+                OutlinedTextField(
+                    value = fieldValue,
+                    onValueChange = { if (!disabled) viewModel.updateInput(field.answerFieldId, it) },
+                    enabled = !disabled,
+                    label = { Text(field.label) },
+                    singleLine = true,
+                    keyboardOptions = keyboardOptionsFor(field.fieldType),
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        }
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+            Button(
+                onClick = viewModel::saveCorrectAnswersFromCurrentInput,
+                modifier = Modifier.height(38.dp),
+                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 0.dp)
+            ) {
+                Text("정답 저장")
+            }
         }
 
+    }
+}
+
+@Composable
+private fun StudentSolutionPanel(
+    attempt: PracticeAttemptEntity,
+    logs: List<AttemptInputLogEntity>
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text("${attempt.attemptNumber}회 학생 풀이", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
             ReviewChip("결과", statusLabel(attempt.finalStatus), statusColor(attempt.finalStatus), Modifier.weight(1f))
+            ReviewChip("날짜", formatAttemptDate(attempt.submittedAt ?: attempt.startedAt), Color(0xFF374151), Modifier.weight(1f))
             ReviewChip("시도", "${attempt.inputTryCount}/${attempt.maxInputTryCount}", Color(0xFF374151), Modifier.weight(1f))
-            ReviewChip("시간", "${attempt.elapsedSeconds}초", Color(0xFF374151), Modifier.weight(1f))
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-            ReviewChip("제한", if (attempt.maxAttemptsReached) "도달" else "미도달", Color(0xFF374151), Modifier.weight(1f))
-            ReviewChip("이동", if (attempt.movedToNextByLimit) "자동" else "수동", Color(0xFF374151), Modifier.weight(1f))
-            ReviewChip("힌트", if (attempt.hintUsed) "사용" else "미사용", Color(0xFF374151), Modifier.weight(1f))
+        Text("학생 답: ${formatSubmittedAnswer(logs)}")
+        SolutionVectorPreview(path = attempt.solutionImagePath, height = 240.dp)
+    }
+}
+
+@Composable
+private fun MasterAttemptButtons(
+    attempts: List<PracticeAttemptEntity>,
+    selectedAttemptId: String?,
+    onToggle: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val visibleAttempts = attempts.sortedBy { it.attemptNumber }.take(4)
+    if (visibleAttempts.isEmpty()) return
+    Row(modifier = modifier, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        visibleAttempts.forEach { attempt ->
+            FilterChip(
+                selected = selectedAttemptId == attempt.attemptId,
+                onClick = { onToggle(attempt.attemptId) },
+                label = { Text("${attempt.attemptNumber}") }
+            )
         }
-        Text("학생 답", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
+    }
+}
+
+@Composable
+private fun MasterAttemptInfoOverlay(
+    attempt: PracticeAttemptEntity,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        modifier = modifier,
+        colors = CardDefaults.cardColors(containerColor = Color(0xEFFFFFFF))
+    ) {
         Text(
-            text = state.latestLogs
-                .groupBy { it.tryNumber }
-                .entries
-                .joinToString(" / ") { (tryNumber, logs) ->
-                    "${tryNumber}회 ${logs.joinToString(", ") { it.submittedAnswerRaw }}"
-                }
-                .ifBlank { "제출 답 없음" }
+            text = "${attempt.attemptNumber}회 · ${statusLabel(attempt.finalStatus)} · ${formatAttemptDate(attempt.submittedAt ?: attempt.startedAt)}",
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp),
+            color = statusColor(attempt.finalStatus),
+            fontWeight = FontWeight.SemiBold
         )
-        if (attempt.isCorrect == false) {
-            OutlinedButton(onClick = viewModel::toggleCorrectAnswer) {
-                Text(if (state.showCorrectAnswer) "정답 숨기기" else "정답보기")
+    }
+}
+
+@Composable
+private fun MasterCorrectSolutionFooter(state: PracticeUiState) {
+    val answerText = formatCurrentAnswer(state)
+    val notes = parseProblemTeacherNotes(state.currentProblem)
+    val hintText = state.currentProblem?.hintText.orEmpty()
+    if (answerText.isBlank() && hintText.isBlank() && notes.isEmpty()) return
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 32.dp),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFFFFFBEB))
+    ) {
+        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (answerText.isNotBlank()) {
+                Text("정답: $answerText", color = Color(0xFFB91C1C), fontWeight = FontWeight.SemiBold)
             }
-            if (state.showCorrectAnswer) {
-                Text("정답: ${state.rules.joinToString(", ") { it.correctAnswerRaw }}", color = Color(0xFFB91C1C))
+            notes.solutionText?.let {
+                Text("교사용 풀이: $it", color = Color(0xFF374151))
+            }
+            notes.expectedSummary?.let {
+                Text("기준: $it", color = Color(0xFF374151), fontWeight = FontWeight.SemiBold)
+            }
+            notes.answerNote?.let {
+                Text("답안 메모: $it", color = Color(0xFF78350F))
+            }
+            notes.teacherMemo?.let {
+                Text("교사용 메모: $it", color = Color(0xFF78350F))
+            }
+            if (hintText.isNotBlank()) {
+                Text("힌트: $hintText", color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
-        Text("학생 풀이가 위 영역에 읽기 전용으로 표시됩니다.", color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 
@@ -382,63 +923,107 @@ private fun ReviewChip(
 @Composable
 private fun ProblemCard(
     state: PracticeUiState,
+    questionTextSizeSp: Int,
     modifier: Modifier = Modifier
 ) {
     Card(modifier = modifier, colors = CardDefaults.cardColors(containerColor = Color.White)) {
-        Box(modifier = Modifier.fillMaxSize()) {
-            Column(
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+        ) {
+            Box(
                 modifier = Modifier
-                    .fillMaxSize()
-                    .verticalScroll(rememberScrollState())
-                    .padding(horizontal = 18.dp, vertical = 14.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
+                    .fillMaxWidth()
+                    .height(estimateWorksheetContentHeightDp(state.currentProblem).dp)
             ) {
-                Text("문제", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
-                val imageConfig = remember(state.currentProblem?.imageCropRectJson) {
-                    ImageDisplayConfig.fromJson(state.currentProblem?.imageCropRectJson)
-                }
-                if (imageConfig.placement == "aboveText") {
-                    ProblemImage(state, imageConfig)
-                }
-                state.currentProblem?.questionText?.let {
-                    Text(
-                        text = it,
-                        style = MaterialTheme.typography.headlineSmall,
-                        lineHeight = 32.sp,
-                        fontWeight = FontWeight.Medium
-                    )
-                }
-                if (!state.currentProblem?.questionLatex.isNullOrBlank()) {
-                    Text(text = state.currentProblem?.questionLatex.orEmpty(), style = MaterialTheme.typography.titleMedium)
-                }
-                if (imageConfig.placement != "aboveText") {
-                    ProblemImage(state, imageConfig)
-                }
-            }
-            if (state.showCorrectMark) {
-                CorrectCircleOverlay()
+                ProblemWorksheetBackground(
+                    problem = state.currentProblem,
+                    questionTextSizeSp = questionTextSizeSp,
+                    modifier = Modifier.fillMaxSize()
+                )
             }
         }
     }
 }
 
 @Composable
-private fun ProblemImage(state: PracticeUiState, config: ImageDisplayConfig) {
-    if (state.currentProblem?.imagePath.isNullOrBlank()) return
-    val alignment = when (config.align) {
-        "start" -> Alignment.CenterStart
-        "end" -> Alignment.CenterEnd
-        else -> Alignment.Center
+private fun MasterImageAdjustControls(
+    mode: WorksheetImageAdjustmentMode,
+    onStartImage: () -> Unit,
+    onStartFrame: () -> Unit,
+    onConfirm: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.End),
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = modifier
+    ) {
+        OutlinedButton(
+            onClick = onStartImage,
+            modifier = Modifier.height(34.dp),
+            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp)
+        ) {
+            Text("그림 조정")
+        }
+        OutlinedButton(
+            onClick = onStartFrame,
+            modifier = Modifier.height(34.dp),
+            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp)
+        ) {
+            Text("테두리 조정")
+        }
+        Button(
+            onClick = onConfirm,
+            enabled = mode != WorksheetImageAdjustmentMode.None,
+            modifier = Modifier.height(34.dp),
+            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp)
+        ) {
+            Text("조정 확정")
+        }
     }
-    Box(modifier = Modifier.fillMaxWidth(), contentAlignment = alignment) {
-        MaskableProblemImage(
-            imagePath = state.currentProblem?.imagePath,
-            maskOverlayJson = state.currentProblem?.maskOverlayJson,
-            modifier = Modifier
-                .fillMaxWidth(config.widthFraction)
-                .height(config.heightDp.dp)
-                .background(Color(0xFFF9FAFB), RoundedCornerShape(8.dp))
-        )
+}
+
+@Composable
+private fun MasterImageSizeControls(
+    viewModel: PracticeViewModel,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.End),
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = modifier
+    ) {
+        Text("그림", style = MaterialTheme.typography.labelMedium, color = Color(0xFF6B7280))
+        OutlinedButton(
+            onClick = { viewModel.adjustCurrentProblemImageHeight(-80) },
+            modifier = Modifier.height(34.dp),
+            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp)
+        ) {
+            Text("-")
+        }
+        OutlinedButton(
+            onClick = { viewModel.adjustCurrentProblemImageHeight(80) },
+            modifier = Modifier.height(34.dp),
+            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp)
+        ) {
+            Text("+")
+        }
+        OutlinedButton(
+            onClick = { viewModel.setCurrentProblemImageMode("crop") },
+            modifier = Modifier.height(34.dp),
+            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp)
+        ) {
+            Text("자르기 크게")
+        }
+        OutlinedButton(
+            onClick = { viewModel.setCurrentProblemImageMode("fit") },
+            modifier = Modifier.height(34.dp),
+            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp)
+        ) {
+            Text("맞춤")
+        }
     }
 }
 
@@ -459,13 +1044,67 @@ private fun CorrectCircleOverlay() {
 private fun AnswerArea(
     state: PracticeUiState,
     viewModel: PracticeViewModel,
+    onSubmit: () -> Unit,
+    showCustomKeypad: Boolean,
+    useSystemKeyboard: Boolean,
+    showSubmittedAnswers: Boolean,
     modifier: Modifier = Modifier
 ) {
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text("남은 기회 ${state.remainingTryCount}/${state.maxTryCount}", style = MaterialTheme.typography.labelLarge)
+        if (showSubmittedAnswers) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalAlignment = Alignment.Top,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                SubmittedAnswerHistory(
+                    logs = state.visibleAnswerLogs,
+                    fields = state.fields,
+                    currentPreview = formatTypedAnswer(state),
+                    modifier = Modifier.weight(1f)
+                )
+                AnswerInputControls(
+                    state = state,
+                    viewModel = viewModel,
+                    onSubmit = onSubmit,
+                    useSystemKeyboard = useSystemKeyboard,
+                    modifier = Modifier.weight(1f)
+                )
+            }
+        } else {
+            AnswerInputControls(
+                state = state,
+                viewModel = viewModel,
+                onSubmit = onSubmit,
+                useSystemKeyboard = useSystemKeyboard,
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
+        if (showCustomKeypad && state.currentProblem?.problemType != ProblemType.MULTIPLE_CHOICE) {
+            AnswerKeypad(
+                onInput = viewModel::appendToActiveField,
+                onBackspace = viewModel::backspaceActiveField,
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
+    }
+}
 
+@Composable
+private fun AnswerInputControls(
+    state: PracticeUiState,
+    viewModel: PracticeViewModel,
+    onSubmit: () -> Unit,
+    useSystemKeyboard: Boolean,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.Bottom,
+        modifier = modifier
+    ) {
         if (state.currentProblem?.problemType == ProblemType.MULTIPLE_CHOICE) {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.weight(1f)) {
                 state.choices.forEach { choice ->
                     FilterChip(
                         selected = state.selectedChoiceIds.contains(choice.choiceId),
@@ -474,18 +1113,120 @@ private fun AnswerArea(
                     )
                 }
             }
-            return
+        } else {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.weight(1f)) {
+                state.fields.filterNot { it.fieldType.isWorksheetOnlyField() }.forEach { field ->
+                    val choiceOptions = inlineChoiceOptionsFor(field, state.rules)
+                    val disabled = field.isDisabledForInput()
+                    val fieldValue = if (disabled) {
+                        field.disabledDisplayValue()
+                    } else {
+                        state.inputByField[field.answerFieldId].orEmpty()
+                    }
+                    if (!disabled) {
+                        InlineChoiceSelector(
+                            options = choiceOptions,
+                            currentValue = state.inputByField[field.answerFieldId].orEmpty(),
+                            onToggle = { option ->
+                                viewModel.updateInput(
+                                    field.answerFieldId,
+                                    toggleInlineChoiceAnswer(
+                                        currentValue = state.inputByField[field.answerFieldId].orEmpty(),
+                                        options = choiceOptions,
+                                        option = option
+                                    )
+                                )
+                            }
+                        )
+                    }
+                    OutlinedTextField(
+                        value = fieldValue,
+                        onValueChange = { if (!disabled) viewModel.updateInput(field.answerFieldId, it) },
+                        enabled = !disabled,
+                        label = { Text(field.label) },
+                        singleLine = true,
+                        keyboardOptions = if (useSystemKeyboard) {
+                            keyboardOptionsFor(field.fieldType)
+                        } else {
+                            keyboardOptionsFor(field.fieldType).copy(showKeyboardOnFocus = false)
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .onFocusChanged { focusState ->
+                                if (!disabled && focusState.isFocused) {
+                                    viewModel.setActiveField(field.answerFieldId)
+                                }
+                            }
+                    )
+                }
+            }
         }
+        Button(
+            onClick = onSubmit,
+            enabled = !state.submitting,
+            modifier = Modifier.height(56.dp)
+        ) {
+            Text(if (state.submitting) "채점중" else "제출")
+        }
+    }
+}
 
-        state.fields.forEach { field ->
-            OutlinedTextField(
-                value = state.inputByField[field.answerFieldId].orEmpty(),
-                onValueChange = { viewModel.updateInput(field.answerFieldId, it) },
-                label = { Text(field.label) },
-                singleLine = true,
-                keyboardOptions = keyboardOptionsFor(field.fieldType),
-                modifier = Modifier.fillMaxWidth()
-            )
+@Composable
+private fun InlineChoiceSelector(
+    options: List<InlineChoiceOption>,
+    currentValue: String,
+    onToggle: (InlineChoiceOption) -> Unit
+) {
+    if (options.isEmpty()) return
+    val selectedKeys = selectedInlineChoiceKeys(currentValue, options)
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+        options.forEach { option ->
+            val selected = selectedKeys.contains(option.key)
+            OutlinedButton(
+                onClick = { onToggle(option) },
+                modifier = Modifier.size(42.dp),
+                shape = CircleShape,
+                border = BorderStroke(
+                    width = 1.4.dp,
+                    color = if (selected) Color(0xFF2563EB) else Color(0xFFCBD5E1)
+                ),
+                colors = ButtonDefaults.outlinedButtonColors(
+                    containerColor = if (selected) Color(0xFF2563EB) else Color.White,
+                    contentColor = if (selected) Color.White else Color(0xFF111827)
+                ),
+                contentPadding = PaddingValues(0.dp)
+            ) {
+                Text(option.display, fontWeight = FontWeight.SemiBold)
+            }
+        }
+    }
+}
+
+@Composable
+private fun AnswerKeypad(
+    onInput: (String) -> Unit,
+    onBackspace: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val keys = listOf("1", "2", "3", "4", "5", "6", "7", "8", "9", "0", ".", ",", "/", "←")
+    Row(horizontalArrangement = Arrangement.spacedBy(4.dp), modifier = modifier.fillMaxWidth()) {
+        keys.forEach { key ->
+            OutlinedButton(
+                onClick = {
+                    if (key == "←") {
+                        onBackspace()
+                    } else {
+                        onInput(key)
+                    }
+                },
+                shape = RoundedCornerShape(8.dp),
+                modifier = Modifier
+                    .weight(1f)
+                    .height(40.dp),
+                contentPadding = PaddingValues(horizontal = 0.dp, vertical = 0.dp)
+            ) {
+                Text(key)
+            }
         }
     }
 }
@@ -498,6 +1239,257 @@ private fun keyboardOptionsFor(fieldType: AnswerFieldType): KeyboardOptions {
         else -> ImeKeyboardType.Text
     }
     return KeyboardOptions(keyboardType = keyboardType)
+}
+
+private fun AnswerFieldType.isWorksheetOnlyField(): Boolean {
+    return this == AnswerFieldType.DRAWING || this == AnswerFieldType.TABLE
+}
+
+private data class InlineChoiceOption(
+    val display: String,
+    val value: String,
+    val key: String
+)
+
+private fun inlineChoiceOptionsFor(
+    field: AnswerFieldEntity,
+    rules: List<com.mathworkbook.app.core.database.AnswerRuleEntity>
+): List<InlineChoiceOption> {
+    explicitInlineChoiceOptions(field.positionJson)?.let { return it }
+
+    val candidateTexts = rules
+        .filter { rule -> rule.answerFieldId == field.answerFieldId || rule.answerFieldId == null }
+        .flatMap { rule ->
+            buildList {
+                add(rule.correctAnswerRaw)
+                add(rule.normalizedAnswer)
+                addAll(parseAcceptedAnswerTexts(rule.acceptedAnswersJson))
+            }
+        }
+    val maxCircled = candidateTexts.maxOfOrNull { text ->
+        text.maxOfOrNull { char -> circledNumberValue(char) ?: 0 } ?: 0
+    } ?: 0
+    if (maxCircled == 0) return emptyList()
+    return (1..maxOf(4, maxCircled)).map { number ->
+        val circled = circledNumber(number)
+        InlineChoiceOption(display = circled, value = circled, key = number.toString())
+    }
+}
+
+private fun explicitInlineChoiceOptions(positionJson: String?): List<InlineChoiceOption>? {
+    if (positionJson.isNullOrBlank()) return null
+    return runCatching {
+        val meta = JSONObject(positionJson)
+        val options = meta.optJSONArray("choiceOptions") ?: return@runCatching null
+        val style = meta.optString("choiceStyle")
+        val valueStyle = meta.optString("choiceValueStyle", style)
+        List(options.length()) { index ->
+            val item = options.get(index)
+            val raw = when (item) {
+                is JSONObject -> item.optString("value")
+                    .ifBlank { item.optString("label") }
+                    .ifBlank { item.optString("display") }
+                    .ifBlank { "${index + 1}" }
+                else -> item.toString()
+            }
+            val number = raw.toIntOrNull()
+            val display = if (style == "circled" && number != null) circledNumber(number) else raw
+            val value = if (valueStyle == "circled" && number != null) circledNumber(number) else raw
+            InlineChoiceOption(
+                display = display,
+                value = value,
+                key = canonicalChoiceToken(value) ?: canonicalChoiceToken(display) ?: raw
+            )
+        }
+    }.getOrNull()
+}
+
+private fun toggleInlineChoiceAnswer(
+    currentValue: String,
+    options: List<InlineChoiceOption>,
+    option: InlineChoiceOption
+): String {
+    val selected = selectedInlineChoiceKeys(currentValue, options).toMutableSet()
+    if (!selected.add(option.key)) {
+        selected.remove(option.key)
+    }
+    return options
+        .filter { selected.contains(it.key) }
+        .joinToString(", ") { it.value }
+}
+
+private fun selectedInlineChoiceKeys(
+    currentValue: String,
+    options: List<InlineChoiceOption>
+): Set<String> {
+    val tokens = currentValue
+        .split(",", " ", "/", "·")
+        .mapNotNull { token -> canonicalChoiceToken(token) ?: token.trim().takeIf { it.isNotBlank() } }
+        .toSet()
+    return options.filter { tokens.contains(it.key) }.mapTo(mutableSetOf()) { it.key }
+}
+
+private fun canonicalChoiceToken(token: String): String? {
+    val cleaned = token
+        .trim()
+        .removeSuffix("번")
+        .trim(' ', '.', ',', '(', ')', '[', ']', '{', '}')
+    if (cleaned.isEmpty()) return null
+    if (cleaned.all { it.isDigit() }) return cleaned
+    if (cleaned.length == 1) {
+        circledNumberValue(cleaned.first())?.let { return it.toString() }
+    }
+    return null
+}
+
+private fun parseAcceptedAnswerTexts(json: String?): List<String> {
+    if (json.isNullOrBlank()) return emptyList()
+    return runCatching {
+        val array = JSONArray(json)
+        List(array.length()) { index -> array.getString(index) }
+    }.getOrDefault(emptyList())
+}
+
+private fun circledNumber(number: Int): String {
+    return CircledNumbers.getOrNull(number) ?: number.toString()
+}
+
+private fun circledNumberValue(char: Char): Int? {
+    return CircledNumbers.indexOf(char.toString()).takeIf { it > 0 }
+}
+
+private val CircledNumbers = listOf(
+    "",
+    "①", "②", "③", "④", "⑤",
+    "⑥", "⑦", "⑧", "⑨", "⑩",
+    "⑪", "⑫", "⑬", "⑭", "⑮",
+    "⑯", "⑰", "⑱", "⑲", "⑳"
+)
+
+private fun PracticeUiState.selectedStudentAttempt(): PracticeAttemptEntity? {
+    return attemptsForProblem.firstOrNull { it.attemptId == selectedStudentAttemptId }
+}
+
+private fun formatCurrentAnswer(state: PracticeUiState): String {
+    return if (state.currentProblem?.problemType == ProblemType.MULTIPLE_CHOICE) {
+        state.choices
+            .filter { state.selectedChoiceIds.contains(it.choiceId) }
+            .joinToString(", ") { it.choiceText }
+    } else {
+        val inputFields = state.fields.filterNot { it.fieldType.isWorksheetOnlyField() }
+        inputFields
+            .mapNotNull { field ->
+                state.inputByField[field.answerFieldId]
+                    ?.takeIf { it.isNotBlank() }
+                    ?.let { formatFieldAnswerValue(field, it, includeLabel = inputFields.size > 1) }
+            }
+            .joinToString(", ")
+            .ifBlank { state.rules.joinToString(", ") { it.correctAnswerRaw } }
+    }
+}
+
+private fun formatTypedAnswer(state: PracticeUiState): String {
+    return if (state.currentProblem?.problemType == ProblemType.MULTIPLE_CHOICE) {
+        state.choices
+            .filter { state.selectedChoiceIds.contains(it.choiceId) }
+            .joinToString(", ") { it.choiceText }
+    } else {
+        val inputFields = state.fields.filterNot { it.fieldType.isWorksheetOnlyField() }
+        inputFields
+            .mapNotNull { field ->
+                state.inputByField[field.answerFieldId]
+                    ?.trim()
+                    ?.takeIf { it.isNotBlank() }
+                    ?.let { formatFieldAnswerValue(field, it, includeLabel = inputFields.size > 1) }
+            }
+            .joinToString(", ")
+    }
+}
+
+private fun formatSubmittedAnswer(logs: List<AttemptInputLogEntity>): String {
+    return logs
+        .groupBy { it.tryNumber }
+        .entries
+        .sortedBy { it.key }
+        .joinToString(" / ") { (tryNumber, tryLogs) ->
+            "${tryNumber}회 ${tryLogs.joinToString(", ") { it.submittedAnswerRaw }}"
+        }
+        .ifBlank { "제출 답 없음" }
+}
+
+private fun submittedAnswerLines(
+    logs: List<AttemptInputLogEntity>,
+    fields: List<AnswerFieldEntity>
+): List<SubmittedAnswerLine> {
+    val fieldById = fields.associateBy { it.answerFieldId }
+    return logs
+        .groupBy { it.tryNumber }
+        .entries
+        .sortedBy { it.key }
+        .mapNotNull { (_, tryLogs) ->
+            val includeLabels = tryLogs.count { !it.answerFieldId.isNullOrBlank() } > 1
+            val text = tryLogs
+                .sortedBy { it.answerFieldId.orEmpty() }
+                .joinToString(", ") { log ->
+                    val field = log.answerFieldId?.let { fieldById[it] }
+                    if (field == null) {
+                        log.submittedAnswerRaw.trim()
+                    } else {
+                        formatFieldAnswerValue(field, log.submittedAnswerRaw, includeLabel = includeLabels)
+                    }
+                }
+                .trim()
+            text.takeIf { it.isNotBlank() }?.let {
+                SubmittedAnswerLine(
+                    text = it,
+                    isCorrect = tryLogs.all { log -> log.isCorrect }
+                )
+            }
+        }
+}
+
+private fun formatFieldAnswerValue(
+    field: AnswerFieldEntity,
+    rawValue: String,
+    includeLabel: Boolean
+): String {
+    val trimmed = rawValue.trim()
+    if (trimmed.isBlank()) return ""
+    val meta = answerFieldMeta(field)
+    val prefix = meta
+        ?.let { it.optString("displayPrefix").ifBlank { it.optString("prefix") } }
+        .orEmpty()
+    val suffix = meta
+        ?.let { it.optString("displaySuffix").ifBlank { it.optString("suffix") } }
+        .orEmpty()
+    val value = "$prefix$trimmed$suffix"
+    return if (includeLabel && field.label.isNotBlank()) {
+        "${field.label} $value"
+    } else {
+        value
+    }
+}
+
+private fun answerFieldMeta(field: AnswerFieldEntity): JSONObject? {
+    if (field.positionJson.isNullOrBlank()) return null
+    return runCatching { JSONObject(field.positionJson.orEmpty()) }.getOrNull()
+}
+
+private fun AnswerFieldEntity.isDisabledForInput(): Boolean {
+    val meta = answerFieldMeta(this) ?: return false
+    return meta.optBoolean("disabled", false) || meta.optBoolean("readOnly", false)
+}
+
+private fun AnswerFieldEntity.disabledDisplayValue(): String {
+    val meta = answerFieldMeta(this)
+    return meta?.optString("displayValue")
+        ?.ifBlank { meta.optString("placeholder") }
+        ?.ifBlank { label }
+        ?: label
+}
+
+private fun formatAttemptDate(timestamp: Long): String {
+    return SimpleDateFormat("MM/dd HH:mm", Locale.KOREA).format(Date(timestamp))
 }
 
 private fun statusLabel(status: FinalStatus): String {
@@ -517,28 +1509,5 @@ private fun statusColor(status: FinalStatus): Color {
         FinalStatus.FAILED_AFTER_MAX_ATTEMPTS -> Color(0xFFB91C1C)
         FinalStatus.MANUAL_REVIEW_REQUIRED -> Color(0xFF92400E)
         FinalStatus.IN_PROGRESS -> Color(0xFF374151)
-    }
-}
-
-private data class ImageDisplayConfig(
-    val heightDp: Int = 240,
-    val widthFraction: Float = 1f,
-    val align: String = "center",
-    val placement: String = "belowText"
-) {
-    companion object {
-        fun fromJson(json: String?): ImageDisplayConfig {
-            if (json.isNullOrBlank()) return ImageDisplayConfig()
-            return runCatching {
-                val root = JSONObject(json)
-                val display = root.optJSONObject("display") ?: root
-                ImageDisplayConfig(
-                    heightDp = display.optInt("heightDp", 240).coerceIn(120, 420),
-                    widthFraction = display.optDouble("widthFraction", 1.0).toFloat().coerceIn(0.35f, 1f),
-                    align = display.optString("align", "center"),
-                    placement = display.optString("placement", "belowText")
-                )
-            }.getOrDefault(ImageDisplayConfig())
-        }
     }
 }

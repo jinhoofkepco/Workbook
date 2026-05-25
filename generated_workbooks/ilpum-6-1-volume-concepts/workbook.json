@@ -1,0 +1,413 @@
+{
+  "workbook": {
+    "workbookId": "ilpum-6-1-volume-concepts",
+    "title": "초 6-1 일품 도형과 부피",
+    "description": "개념탐구 1~10 전체 페이지 이미지 문제집",
+    "grade": "6",
+    "version": 1
+  },
+  "chapters": [
+    {
+      "chapterId": "ilpum-6-1-volume-concepts-concept-01",
+      "title": "직육면체의 겉넓이",
+      "orderIndex": 1
+    },
+    {
+      "chapterId": "ilpum-6-1-volume-concepts-concept-02",
+      "title": "복잡한 도형의 겉넓이",
+      "orderIndex": 2
+    },
+    {
+      "chapterId": "ilpum-6-1-volume-concepts-concept-03",
+      "title": "직육면체의 부피",
+      "orderIndex": 3
+    },
+    {
+      "chapterId": "ilpum-6-1-volume-concepts-concept-04",
+      "title": "복잡한 도형의 부피",
+      "orderIndex": 4
+    },
+    {
+      "chapterId": "ilpum-6-1-volume-concepts-concept-05",
+      "title": "겉넓이와 부피",
+      "orderIndex": 5
+    },
+    {
+      "chapterId": "ilpum-6-1-volume-concepts-concept-06",
+      "title": "겉넓이·부피의 활용",
+      "orderIndex": 6
+    },
+    {
+      "chapterId": "ilpum-6-1-volume-concepts-concept-07",
+      "title": "물의 부피 ① 부피의 단위와 들이",
+      "orderIndex": 7
+    },
+    {
+      "chapterId": "ilpum-6-1-volume-concepts-concept-08",
+      "title": "물의 부피 ② 물의 높이",
+      "orderIndex": 8
+    },
+    {
+      "chapterId": "ilpum-6-1-volume-concepts-concept-09",
+      "title": "물의 부피 ③ 넘친 물의 부피",
+      "orderIndex": 9
+    },
+    {
+      "chapterId": "ilpum-6-1-volume-concepts-concept-10",
+      "title": "물의 부피 ④ 물의 부피의 활용",
+      "orderIndex": 10
+    }
+  ],
+  "problems": [
+    {
+      "problemId": "ilpum-6-1-volume-concepts-p01",
+      "chapterId": "ilpum-6-1-volume-concepts-concept-01",
+      "problemType": "MANUAL_ONLY",
+      "questionText": "개념탐구 1 직육면체의 겉넓이",
+      "imagePath": "images/concept-01.png",
+      "sourcePageImagePath": "images/concept-01.png",
+      "imageDisplayJson": {
+        "heightDp": 1120,
+        "widthFraction": 1,
+        "align": "center",
+        "placement": "aboveText"
+      },
+      "orderIndex": 1,
+      "answerFields": [
+        {
+          "answerFieldId": "ilpum-6-1-volume-concepts-p01-memo",
+          "label": "확인",
+          "fieldType": "TEXT",
+          "orderIndex": 1,
+          "required": false
+        }
+      ],
+      "answerRules": [
+        {
+          "answerRuleId": "ilpum-6-1-volume-concepts-p01-manual",
+          "answerFieldId": "ilpum-6-1-volume-concepts-p01-memo",
+          "answerType": "MANUAL",
+          "correctAnswerRaw": "",
+          "normalizedAnswer": "",
+          "manualGradingRequired": true,
+          "unitType": "NONE"
+        }
+      ]
+    },
+    {
+      "problemId": "ilpum-6-1-volume-concepts-p02",
+      "chapterId": "ilpum-6-1-volume-concepts-concept-02",
+      "problemType": "MANUAL_ONLY",
+      "questionText": "개념탐구 2 복잡한 도형의 겉넓이",
+      "imagePath": "images/concept-02.png",
+      "sourcePageImagePath": "images/concept-02.png",
+      "imageDisplayJson": {
+        "heightDp": 1120,
+        "widthFraction": 1,
+        "align": "center",
+        "placement": "aboveText"
+      },
+      "orderIndex": 1,
+      "answerFields": [
+        {
+          "answerFieldId": "ilpum-6-1-volume-concepts-p02-memo",
+          "label": "확인",
+          "fieldType": "TEXT",
+          "orderIndex": 1,
+          "required": false
+        }
+      ],
+      "answerRules": [
+        {
+          "answerRuleId": "ilpum-6-1-volume-concepts-p02-manual",
+          "answerFieldId": "ilpum-6-1-volume-concepts-p02-memo",
+          "answerType": "MANUAL",
+          "correctAnswerRaw": "",
+          "normalizedAnswer": "",
+          "manualGradingRequired": true,
+          "unitType": "NONE"
+        }
+      ]
+    },
+    {
+      "problemId": "ilpum-6-1-volume-concepts-p03",
+      "chapterId": "ilpum-6-1-volume-concepts-concept-03",
+      "problemType": "MANUAL_ONLY",
+      "questionText": "개념탐구 3 직육면체의 부피",
+      "imagePath": "images/concept-03.png",
+      "sourcePageImagePath": "images/concept-03.png",
+      "imageDisplayJson": {
+        "heightDp": 1120,
+        "widthFraction": 1,
+        "align": "center",
+        "placement": "aboveText"
+      },
+      "orderIndex": 1,
+      "answerFields": [
+        {
+          "answerFieldId": "ilpum-6-1-volume-concepts-p03-memo",
+          "label": "확인",
+          "fieldType": "TEXT",
+          "orderIndex": 1,
+          "required": false
+        }
+      ],
+      "answerRules": [
+        {
+          "answerRuleId": "ilpum-6-1-volume-concepts-p03-manual",
+          "answerFieldId": "ilpum-6-1-volume-concepts-p03-memo",
+          "answerType": "MANUAL",
+          "correctAnswerRaw": "",
+          "normalizedAnswer": "",
+          "manualGradingRequired": true,
+          "unitType": "NONE"
+        }
+      ]
+    },
+    {
+      "problemId": "ilpum-6-1-volume-concepts-p04",
+      "chapterId": "ilpum-6-1-volume-concepts-concept-04",
+      "problemType": "MANUAL_ONLY",
+      "questionText": "개념탐구 4 복잡한 도형의 부피",
+      "imagePath": "images/concept-04.png",
+      "sourcePageImagePath": "images/concept-04.png",
+      "imageDisplayJson": {
+        "heightDp": 1120,
+        "widthFraction": 1,
+        "align": "center",
+        "placement": "aboveText"
+      },
+      "orderIndex": 1,
+      "answerFields": [
+        {
+          "answerFieldId": "ilpum-6-1-volume-concepts-p04-memo",
+          "label": "확인",
+          "fieldType": "TEXT",
+          "orderIndex": 1,
+          "required": false
+        }
+      ],
+      "answerRules": [
+        {
+          "answerRuleId": "ilpum-6-1-volume-concepts-p04-manual",
+          "answerFieldId": "ilpum-6-1-volume-concepts-p04-memo",
+          "answerType": "MANUAL",
+          "correctAnswerRaw": "",
+          "normalizedAnswer": "",
+          "manualGradingRequired": true,
+          "unitType": "NONE"
+        }
+      ]
+    },
+    {
+      "problemId": "ilpum-6-1-volume-concepts-p05",
+      "chapterId": "ilpum-6-1-volume-concepts-concept-05",
+      "problemType": "MANUAL_ONLY",
+      "questionText": "개념탐구 5 겉넓이와 부피",
+      "imagePath": "images/concept-05.png",
+      "sourcePageImagePath": "images/concept-05.png",
+      "imageDisplayJson": {
+        "heightDp": 1120,
+        "widthFraction": 1,
+        "align": "center",
+        "placement": "aboveText"
+      },
+      "orderIndex": 1,
+      "answerFields": [
+        {
+          "answerFieldId": "ilpum-6-1-volume-concepts-p05-memo",
+          "label": "확인",
+          "fieldType": "TEXT",
+          "orderIndex": 1,
+          "required": false
+        }
+      ],
+      "answerRules": [
+        {
+          "answerRuleId": "ilpum-6-1-volume-concepts-p05-manual",
+          "answerFieldId": "ilpum-6-1-volume-concepts-p05-memo",
+          "answerType": "MANUAL",
+          "correctAnswerRaw": "",
+          "normalizedAnswer": "",
+          "manualGradingRequired": true,
+          "unitType": "NONE"
+        }
+      ]
+    },
+    {
+      "problemId": "ilpum-6-1-volume-concepts-p06",
+      "chapterId": "ilpum-6-1-volume-concepts-concept-06",
+      "problemType": "MANUAL_ONLY",
+      "questionText": "개념탐구 6 겉넓이·부피의 활용",
+      "imagePath": "images/concept-06.png",
+      "sourcePageImagePath": "images/concept-06.png",
+      "imageDisplayJson": {
+        "heightDp": 1120,
+        "widthFraction": 1,
+        "align": "center",
+        "placement": "aboveText"
+      },
+      "orderIndex": 1,
+      "answerFields": [
+        {
+          "answerFieldId": "ilpum-6-1-volume-concepts-p06-memo",
+          "label": "확인",
+          "fieldType": "TEXT",
+          "orderIndex": 1,
+          "required": false
+        }
+      ],
+      "answerRules": [
+        {
+          "answerRuleId": "ilpum-6-1-volume-concepts-p06-manual",
+          "answerFieldId": "ilpum-6-1-volume-concepts-p06-memo",
+          "answerType": "MANUAL",
+          "correctAnswerRaw": "",
+          "normalizedAnswer": "",
+          "manualGradingRequired": true,
+          "unitType": "NONE"
+        }
+      ]
+    },
+    {
+      "problemId": "ilpum-6-1-volume-concepts-p07",
+      "chapterId": "ilpum-6-1-volume-concepts-concept-07",
+      "problemType": "MANUAL_ONLY",
+      "questionText": "개념탐구 7 물의 부피 ① 부피의 단위와 들이",
+      "imagePath": "images/concept-07.png",
+      "sourcePageImagePath": "images/concept-07.png",
+      "imageDisplayJson": {
+        "heightDp": 1120,
+        "widthFraction": 1,
+        "align": "center",
+        "placement": "aboveText"
+      },
+      "orderIndex": 1,
+      "answerFields": [
+        {
+          "answerFieldId": "ilpum-6-1-volume-concepts-p07-memo",
+          "label": "확인",
+          "fieldType": "TEXT",
+          "orderIndex": 1,
+          "required": false
+        }
+      ],
+      "answerRules": [
+        {
+          "answerRuleId": "ilpum-6-1-volume-concepts-p07-manual",
+          "answerFieldId": "ilpum-6-1-volume-concepts-p07-memo",
+          "answerType": "MANUAL",
+          "correctAnswerRaw": "",
+          "normalizedAnswer": "",
+          "manualGradingRequired": true,
+          "unitType": "NONE"
+        }
+      ]
+    },
+    {
+      "problemId": "ilpum-6-1-volume-concepts-p08",
+      "chapterId": "ilpum-6-1-volume-concepts-concept-08",
+      "problemType": "MANUAL_ONLY",
+      "questionText": "개념탐구 8 물의 부피 ② 물의 높이",
+      "imagePath": "images/concept-08.png",
+      "sourcePageImagePath": "images/concept-08.png",
+      "imageDisplayJson": {
+        "heightDp": 1120,
+        "widthFraction": 1,
+        "align": "center",
+        "placement": "aboveText"
+      },
+      "orderIndex": 1,
+      "answerFields": [
+        {
+          "answerFieldId": "ilpum-6-1-volume-concepts-p08-memo",
+          "label": "확인",
+          "fieldType": "TEXT",
+          "orderIndex": 1,
+          "required": false
+        }
+      ],
+      "answerRules": [
+        {
+          "answerRuleId": "ilpum-6-1-volume-concepts-p08-manual",
+          "answerFieldId": "ilpum-6-1-volume-concepts-p08-memo",
+          "answerType": "MANUAL",
+          "correctAnswerRaw": "",
+          "normalizedAnswer": "",
+          "manualGradingRequired": true,
+          "unitType": "NONE"
+        }
+      ]
+    },
+    {
+      "problemId": "ilpum-6-1-volume-concepts-p09",
+      "chapterId": "ilpum-6-1-volume-concepts-concept-09",
+      "problemType": "MANUAL_ONLY",
+      "questionText": "개념탐구 9 물의 부피 ③ 넘친 물의 부피",
+      "imagePath": "images/concept-09.png",
+      "sourcePageImagePath": "images/concept-09.png",
+      "imageDisplayJson": {
+        "heightDp": 1120,
+        "widthFraction": 1,
+        "align": "center",
+        "placement": "aboveText"
+      },
+      "orderIndex": 1,
+      "answerFields": [
+        {
+          "answerFieldId": "ilpum-6-1-volume-concepts-p09-memo",
+          "label": "확인",
+          "fieldType": "TEXT",
+          "orderIndex": 1,
+          "required": false
+        }
+      ],
+      "answerRules": [
+        {
+          "answerRuleId": "ilpum-6-1-volume-concepts-p09-manual",
+          "answerFieldId": "ilpum-6-1-volume-concepts-p09-memo",
+          "answerType": "MANUAL",
+          "correctAnswerRaw": "",
+          "normalizedAnswer": "",
+          "manualGradingRequired": true,
+          "unitType": "NONE"
+        }
+      ]
+    },
+    {
+      "problemId": "ilpum-6-1-volume-concepts-p10",
+      "chapterId": "ilpum-6-1-volume-concepts-concept-10",
+      "problemType": "MANUAL_ONLY",
+      "questionText": "개념탐구 10 물의 부피 ④ 물의 부피의 활용",
+      "imagePath": "images/concept-10.png",
+      "sourcePageImagePath": "images/concept-10.png",
+      "imageDisplayJson": {
+        "heightDp": 1120,
+        "widthFraction": 1,
+        "align": "center",
+        "placement": "aboveText"
+      },
+      "orderIndex": 1,
+      "answerFields": [
+        {
+          "answerFieldId": "ilpum-6-1-volume-concepts-p10-memo",
+          "label": "확인",
+          "fieldType": "TEXT",
+          "orderIndex": 1,
+          "required": false
+        }
+      ],
+      "answerRules": [
+        {
+          "answerRuleId": "ilpum-6-1-volume-concepts-p10-manual",
+          "answerFieldId": "ilpum-6-1-volume-concepts-p10-memo",
+          "answerType": "MANUAL",
+          "correctAnswerRaw": "",
+          "normalizedAnswer": "",
+          "manualGradingRequired": true,
+          "unitType": "NONE"
+        }
+      ]
+    }
+  ]
+}

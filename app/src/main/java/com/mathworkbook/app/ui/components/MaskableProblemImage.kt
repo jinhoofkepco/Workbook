@@ -23,7 +23,8 @@ import org.json.JSONObject
 fun MaskableProblemImage(
     imagePath: String?,
     maskOverlayJson: String?,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    contentScale: ContentScale = ContentScale.Fit
 ) {
     if (imagePath.isNullOrBlank()) {
         Box(
@@ -41,7 +42,7 @@ fun MaskableProblemImage(
         AsyncImage(
             model = imagePath,
             contentDescription = null,
-            contentScale = ContentScale.Fit,
+            contentScale = contentScale,
             modifier = Modifier.fillMaxSize()
         )
         Canvas(modifier = Modifier.fillMaxSize()) {

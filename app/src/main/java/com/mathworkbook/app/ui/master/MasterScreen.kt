@@ -8,16 +8,22 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContract
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -39,22 +45,32 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.mathworkbook.app.core.database.AnswerRuleEntity
 import com.mathworkbook.app.core.database.AttemptInputLogEntity
 import com.mathworkbook.app.core.database.PracticeAttemptEntity
 import com.mathworkbook.app.core.database.ProblemEntity
 import com.mathworkbook.app.core.domain.FinalStatus
-import com.mathworkbook.app.ui.components.MaskableProblemImage
-import com.mathworkbook.app.ui.components.SolutionVectorPreview
+import com.mathworkbook.app.ui.components.ProblemWorksheetBackground
+import com.mathworkbook.app.ui.components.ProblemWorksheetFooterOverlay
+import com.mathworkbook.app.ui.components.SolutionVectorOverlay
+import com.mathworkbook.app.ui.components.estimateWorksheetContentHeightDp
+import com.mathworkbook.app.ui.components.parseProblemTeacherNotes
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 @Composable
 fun MasterScreen(
     viewModel: MasterViewModel,
+    questionTextSizeSp: Int = 24,
+    onChangeQuestionTextSize: (Int) -> Unit = {},
     onExitMasterMode: () -> Unit = {},
     onStartExamMode: () -> Unit = {},
     modifier: Modifier = Modifier
@@ -63,7 +79,19 @@ fun MasterScreen(
     var showSettings by remember { mutableStateOf(false) }
     var showImport by remember { mutableStateOf(false) }
     var showExamCreate by remember { mutableStateOf(false) }
-    var expandedAttemptId by remember { mutableStateOf<String?>(null) }
+    var expandedProblemId by remember { mutableStateOf<String?>(null) }
+    val attemptGroups = remember(state.attempts, state.problems) {
+        state.attempts
+            .groupBy { it.problemId }
+            .map { (problemId, attempts) ->
+                ProblemAttemptGroup(
+                    problemId = problemId,
+                    problem = state.problems.firstOrNull { it.problemId == problemId },
+                    attempts = attempts.sortedByDescending { it.submittedAt ?: it.startedAt }
+                )
+            }
+            .sortedByDescending { group -> group.attempts.firstOrNull()?.let { it.submittedAt ?: it.startedAt } ?: 0L }
+    }
     val context = LocalContext.current
     val zipDocumentContract = remember { ZipFilePickerContract(Intent.ACTION_OPEN_DOCUMENT) }
     val zipContentContract = remember { ZipFilePickerContract(Intent.ACTION_GET_CONTENT) }
@@ -102,7 +130,7 @@ fun MasterScreen(
                     Text("시험 생성")
                 }
                 FilledTonalButton(onClick = { showSettings = true }) {
-                    Text("입력 제한")
+                    Text("설정")
                 }
                 Button(onClick = { showImport = true }) {
                     Text("문제집 가져오기")
@@ -116,24 +144,24 @@ fun MasterScreen(
             }
 
             LazyColumn(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                if (state.attempts.isEmpty()) {
+                if (attemptGroups.isEmpty()) {
                     item {
                         Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color.White)) {
                             Text("아직 풀이 기록이 없습니다.", modifier = Modifier.padding(16.dp))
                         }
                     }
                 }
-                items(state.attempts) { attempt ->
-                    val problem = state.problems.firstOrNull { it.problemId == attempt.problemId }
-                    AttemptRow(
-                        attempt = attempt,
-                        problem = problem,
-                        logs = state.inputLogsByAttempt[attempt.attemptId].orEmpty(),
-                        correctAnswers = state.correctAnswersByProblem[attempt.problemId].orEmpty(),
-                        expanded = expandedAttemptId == attempt.attemptId,
+                items(attemptGroups) { group ->
+                    ProblemAttemptRow(
+                        group = group,
+                        inputLogsByAttempt = state.inputLogsByAttempt,
+                        answerRules = state.answerRulesByProblem[group.problemId].orEmpty(),
+                        expanded = expandedProblemId == group.problemId,
+                        questionTextSizeSp = questionTextSizeSp,
                         onClick = {
-                            expandedAttemptId = if (expandedAttemptId == attempt.attemptId) null else attempt.attemptId
-                        }
+                            expandedProblemId = if (expandedProblemId == group.problemId) null else group.problemId
+                        },
+                        onSaveAnswer = viewModel::updateCorrectAnswer
                     )
                 }
             }
@@ -143,8 +171,10 @@ fun MasterScreen(
     if (showSettings) {
         SettingsDialog(
             state = state,
+            questionTextSizeSp = questionTextSizeSp,
             onDismiss = { showSettings = false },
-            onChange = viewModel::updateDefaultMaxTryCount
+            onChangeMaxTryCount = viewModel::updateDefaultMaxTryCount,
+            onChangeQuestionTextSize = onChangeQuestionTextSize
         )
     }
 
@@ -298,69 +328,218 @@ private fun createZipFilePickerIntent(
     }
 }
 
+private data class ProblemAttemptGroup(
+    val problemId: String,
+    val problem: ProblemEntity?,
+    val attempts: List<PracticeAttemptEntity>
+)
+
 @Composable
-private fun AttemptRow(
-    attempt: PracticeAttemptEntity,
-    problem: ProblemEntity?,
-    logs: List<AttemptInputLogEntity>,
-    correctAnswers: List<String>,
+private fun ProblemAttemptRow(
+    group: ProblemAttemptGroup,
+    inputLogsByAttempt: Map<String, List<AttemptInputLogEntity>>,
+    answerRules: List<AnswerRuleEntity>,
     expanded: Boolean,
-    onClick: () -> Unit
+    questionTextSizeSp: Int,
+    onClick: () -> Unit,
+    onSaveAnswer: (AnswerRuleEntity, String) -> Unit
 ) {
-    var showCorrectAnswer by remember(attempt.attemptId) { mutableStateOf(false) }
-    val submittedAnswer = logs
-        .groupBy { it.tryNumber }
-        .entries
-        .joinToString(" / ") { (tryNumber, tryLogs) ->
-            "${tryNumber}회 ${tryLogs.joinToString(", ") { it.submittedAnswerRaw }}"
-        }
-        .ifBlank { "제출 답 없음" }
-    val problemName = problem?.questionText?.take(28) ?: attempt.problemId
-    val location = "${attempt.workbookId} - ${attempt.chapterId} - ${problem?.orderIndex ?: attempt.problemId}"
+    val latestAttempt = group.attempts.first()
+    val problemName = group.problem?.questionText?.take(42) ?: group.problemId
+    val location = "${latestAttempt.workbookId} - ${latestAttempt.chapterId} - ${group.problem?.orderIndex ?: group.problemId}"
 
     Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick),
+        modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = Color.White)
     ) {
         Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-                Text(problemName, modifier = Modifier.weight(1.5f), maxLines = 1, fontWeight = FontWeight.SemiBold)
-                Text(statusLabel(attempt.finalStatus), color = statusColor(attempt.finalStatus), fontWeight = FontWeight.Bold)
-                Text("($location)", modifier = Modifier.weight(1.2f), maxLines = 1, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text("힌트 ${if (attempt.hintUsed) "사용" else "미사용"}", maxLines = 1)
-                Text("${attempt.elapsedSeconds}초", maxLines = 1)
-                Text("답변 ${attempt.inputTryCount}회", maxLines = 1)
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable(onClick = onClick),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                    Text(problemName, modifier = Modifier.weight(1f), maxLines = 1, fontWeight = FontWeight.SemiBold)
+                    Text("${group.attempts.size}회 풀이", fontWeight = FontWeight.Bold)
+                    Text(statusLabel(latestAttempt.finalStatus), color = statusColor(latestAttempt.finalStatus), fontWeight = FontWeight.Bold)
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                    Text(location, modifier = Modifier.weight(1f), maxLines = 1, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("최근 ${formatTimestamp(latestAttempt.submittedAt ?: latestAttempt.startedAt)}", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
             }
 
             if (expanded) {
+                var selectedAttemptId by remember(group.problemId, group.attempts.size) {
+                    mutableStateOf(latestAttempt.attemptId)
+                }
+                val selectedAttempt = group.attempts.firstOrNull { it.attemptId == selectedAttemptId } ?: latestAttempt
+
                 HorizontalDivider()
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text("문제", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                    Text(problem?.questionText ?: attempt.problemId)
-                    if (!problem?.imagePath.isNullOrBlank()) {
-                        MaskableProblemImage(
-                            imagePath = problem?.imagePath,
-                            maskOverlayJson = problem?.maskOverlayJson,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(220.dp)
-                        )
+                    MasterProblemPreview(
+                        problem = group.problem,
+                        questionTextSizeSp = questionTextSizeSp
+                    )
+                    ProblemTeacherMeta(group.problem)
+
+                    Text("풀이 회차", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        items(group.attempts) { attempt ->
+                            FilterChip(
+                                selected = selectedAttempt.attemptId == attempt.attemptId,
+                                onClick = { selectedAttemptId = attempt.attemptId },
+                                label = { Text("${attempt.attemptNumber}회 ${formatTimestamp(attempt.submittedAt ?: attempt.startedAt)}") }
+                            )
+                        }
                     }
 
-                    Text("풀이내용", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                    SolutionVectorPreview(path = attempt.solutionImagePath)
+                    AttemptDetail(
+                        problem = group.problem,
+                        questionTextSizeSp = questionTextSizeSp,
+                        attempt = selectedAttempt,
+                        logs = inputLogsByAttempt[selectedAttempt.attemptId].orEmpty()
+                    )
 
-                    Text("답", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                    Text("학생 답: $submittedAnswer")
-                    if (attempt.isCorrect == false || attempt.maxAttemptsReached) {
-                        OutlinedButton(onClick = { showCorrectAnswer = !showCorrectAnswer }) {
-                            Text(if (showCorrectAnswer) "정답 숨기기" else "정답보기")
-                        }
-                        if (showCorrectAnswer) {
-                            Text("정답: ${correctAnswers.joinToString(", ")}", color = Color(0xFFB91C1C), fontWeight = FontWeight.SemiBold)
-                        }
+                    CorrectAnswerEditor(
+                        answerRules = answerRules,
+                        onSaveAnswer = onSaveAnswer
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun AttemptDetail(
+    problem: ProblemEntity?,
+    questionTextSizeSp: Int,
+    attempt: PracticeAttemptEntity,
+    logs: List<AttemptInputLogEntity>
+) {
+    val submittedAnswer = formatSubmittedAnswer(logs)
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
+            Text(statusLabel(attempt.finalStatus), color = statusColor(attempt.finalStatus), fontWeight = FontWeight.Bold)
+            Text("답변 ${attempt.inputTryCount}회")
+            Text("${attempt.elapsedSeconds}초")
+            Text("힌트 ${if (attempt.hintUsed) "사용" else "미사용"}")
+        }
+        Text("제출: $submittedAnswer")
+        Text("문제와 학생 풀이", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+        StudentAttemptWorksheetPreview(
+            problem = problem,
+            questionTextSizeSp = questionTextSizeSp,
+            attempt = attempt,
+            logs = logs
+        )
+    }
+}
+
+@Composable
+private fun StudentAttemptWorksheetPreview(
+    problem: ProblemEntity?,
+    questionTextSizeSp: Int,
+    attempt: PracticeAttemptEntity,
+    logs: List<AttemptInputLogEntity>
+) {
+    val worksheetHeight = estimateWorksheetContentHeightDp(problem).dp
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(520.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White)
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .background(Color(0xFFFAFAFA))
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(worksheetHeight)
+            ) {
+                Canvas(modifier = Modifier.fillMaxSize()) {
+                    val lineGap = 36.dp.toPx()
+                    var y = lineGap
+                    while (y < size.height) {
+                        drawLine(
+                            color = Color(0xFFE5E7EB),
+                            start = Offset(0f, y),
+                            end = Offset(size.width, y),
+                            strokeWidth = 1.2f
+                        )
+                        y += lineGap
+                    }
+                }
+                ProblemWorksheetBackground(
+                    problem = problem,
+                    questionTextSizeSp = questionTextSizeSp,
+                    modifier = Modifier.fillMaxSize()
+                )
+                SolutionVectorOverlay(
+                    path = attempt.solutionImagePath,
+                    modifier = Modifier.fillMaxSize()
+                )
+                ProblemWorksheetFooterOverlay(
+                    problem = problem,
+                    questionTextSizeSp = questionTextSizeSp,
+                    modifier = Modifier.fillMaxSize()
+                ) {
+                    AttemptAnswerOverlay(logs)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun AttemptAnswerOverlay(logs: List<AttemptInputLogEntity>) {
+    val answerText = formatSubmittedAnswer(logs)
+    if (answerText.isBlank()) return
+    Card(
+        colors = CardDefaults.cardColors(containerColor = Color(0xF2FFFFFF))
+    ) {
+        Text(
+            text = "학생 답: $answerText",
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+            color = Color(0xFF2563EB),
+            fontWeight = FontWeight.SemiBold
+        )
+    }
+}
+
+@Composable
+private fun CorrectAnswerEditor(
+    answerRules: List<AnswerRuleEntity>,
+    onSaveAnswer: (AnswerRuleEntity, String) -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text("정답 수정", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+        if (answerRules.isEmpty()) {
+            Text("등록된 정답이 없습니다.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+        } else {
+            answerRules.forEachIndexed { index, rule ->
+                var draft by remember(rule.answerRuleId, rule.correctAnswerRaw) {
+                    mutableStateOf(rule.correctAnswerRaw)
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                    OutlinedTextField(
+                        value = draft,
+                        onValueChange = { draft = it },
+                        label = { Text(if (answerRules.size == 1) "정답" else "정답 ${index + 1}") },
+                        singleLine = true,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Button(
+                        onClick = { onSaveAnswer(rule, draft) },
+                        enabled = draft.trim() != rule.correctAnswerRaw
+                    ) {
+                        Text("저장")
                     }
                 }
             }
@@ -369,23 +548,64 @@ private fun AttemptRow(
 }
 
 @Composable
+private fun ProblemTeacherMeta(problem: ProblemEntity?) {
+    val meta = remember(problem?.imageCropRectJson) { parseProblemTeacherNotes(problem) }
+    if (meta.isEmpty()) return
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFFFFFBEB))
+    ) {
+        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            meta.teacherMemo?.let {
+                Text("교사용 메모: $it", color = Color(0xFF78350F))
+            }
+            meta.answerNote?.let {
+                Text("답안 메모: $it", color = Color(0xFF78350F))
+            }
+            meta.expectedSummary?.let {
+                Text("기준: $it", color = Color(0xFF374151), fontWeight = FontWeight.SemiBold)
+            }
+            meta.solutionText?.let {
+                Text("교사용 풀이: $it", color = Color(0xFF374151))
+            }
+            meta.gradingMode?.let {
+                Text("채점 방식: $it", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+    }
+}
+
+@Composable
 private fun SettingsDialog(
     state: MasterUiState,
+    questionTextSizeSp: Int,
     onDismiss: () -> Unit,
-    onChange: (Int) -> Unit
+    onChangeMaxTryCount: (Int) -> Unit,
+    onChangeQuestionTextSize: (Int) -> Unit
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("연습 모드 입력 제한") },
+        title = { Text("마스터 설정") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text("문제당 최대 답 입력 횟수입니다. 권장 범위는 1회에서 10회입니다.")
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(onClick = { onChange(state.maxTryCount - 1) }) {
+                    OutlinedButton(onClick = { onChangeMaxTryCount(state.maxTryCount - 1) }) {
                         Text("-")
                     }
                     Text("${state.maxTryCount}회", modifier = Modifier.padding(12.dp))
-                    Button(onClick = { onChange(state.maxTryCount + 1) }) {
+                    Button(onClick = { onChangeMaxTryCount(state.maxTryCount + 1) }) {
+                        Text("+")
+                    }
+                }
+                HorizontalDivider()
+                Text("문제 글씨 크기입니다. 마스터 모드에서 문제를 확인할 때 적용됩니다.")
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(onClick = { onChangeQuestionTextSize(questionTextSizeSp - 2) }) {
+                        Text("-")
+                    }
+                    Text("${questionTextSizeSp}sp", modifier = Modifier.padding(12.dp))
+                    Button(onClick = { onChangeQuestionTextSize(questionTextSizeSp + 2) }) {
                         Text("+")
                     }
                 }
@@ -397,6 +617,28 @@ private fun SettingsDialog(
             }
         }
     )
+}
+
+@Composable
+private fun MasterProblemPreview(
+    problem: ProblemEntity?,
+    questionTextSizeSp: Int
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text("문제", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(estimateWorksheetContentHeightDp(problem).dp),
+            colors = CardDefaults.cardColors(containerColor = Color.White)
+        ) {
+            ProblemWorksheetBackground(
+                problem = problem,
+                questionTextSizeSp = questionTextSizeSp,
+                modifier = Modifier.fillMaxSize()
+            )
+        }
+    }
 }
 
 @Composable
@@ -544,6 +786,21 @@ private fun statusLabel(status: FinalStatus): String {
         FinalStatus.WRONG -> "오답"
         FinalStatus.IN_PROGRESS -> "진행 중"
     }
+}
+
+private fun formatSubmittedAnswer(logs: List<AttemptInputLogEntity>): String {
+    return logs
+        .groupBy { it.tryNumber }
+        .entries
+        .sortedBy { it.key }
+        .joinToString(" / ") { (tryNumber, tryLogs) ->
+            "${tryNumber}회 ${tryLogs.joinToString(", ") { it.submittedAnswerRaw }}"
+        }
+        .ifBlank { "제출 답 없음" }
+}
+
+private fun formatTimestamp(timestamp: Long): String {
+    return SimpleDateFormat("MM/dd HH:mm", Locale.KOREA).format(Date(timestamp))
 }
 
 private fun statusColor(status: FinalStatus): Color {

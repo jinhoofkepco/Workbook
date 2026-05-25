@@ -37,6 +37,7 @@ data class MasterUiState(
     val problems: List<ProblemEntity> = emptyList(),
     val attempts: List<PracticeAttemptEntity> = emptyList(),
     val inputLogsByAttempt: Map<String, List<AttemptInputLogEntity>> = emptyMap(),
+    val answerRulesByProblem: Map<String, List<AnswerRuleEntity>> = emptyMap(),
     val correctAnswersByProblem: Map<String, List<String>> = emptyMap(),
     val examSessions: List<ExamSessionEntity> = emptyList(),
     val maxTryCount: Int = 3,
@@ -69,16 +70,20 @@ class MasterViewModel(
                 val logs = attempts.associate { attempt ->
                     attempt.attemptId to dao.getAttemptInputLogs(attempt.attemptId)
                 }
-                val answers = attempts
+                val rules = attempts
                     .map { it.problemId }
                     .distinct()
                     .associateWith { problemId ->
-                        dao.getAnswerRules(problemId).map { it.correctAnswerRaw }
+                        dao.getAnswerRules(problemId)
                     }
+                val answers = rules.mapValues { (_, problemRules) ->
+                    problemRules.map { it.correctAnswerRaw }
+                }
                 _state.update {
                     it.copy(
                         attempts = attempts,
                         inputLogsByAttempt = logs,
+                        answerRulesByProblem = rules,
                         correctAnswersByProblem = answers
                     )
                 }
@@ -87,6 +92,28 @@ class MasterViewModel(
         viewModelScope.launch {
             dao.observeExamSessions().collect { sessions ->
                 _state.update { it.copy(examSessions = sessions) }
+            }
+        }
+    }
+
+    fun updateCorrectAnswer(rule: AnswerRuleEntity, rawAnswer: String) {
+        viewModelScope.launch {
+            val cleaned = rawAnswer.trim()
+            dao.upsertAnswerRule(
+                rule.copy(
+                    correctAnswerRaw = cleaned,
+                    normalizedAnswer = cleaned.replace(",", "")
+                )
+            )
+            val problemRules = dao.getAnswerRules(rule.problemId)
+            _state.update {
+                it.copy(
+                    answerRulesByProblem = it.answerRulesByProblem + (rule.problemId to problemRules),
+                    correctAnswersByProblem = it.correctAnswersByProblem + (
+                        rule.problemId to problemRules.map { problemRule -> problemRule.correctAnswerRaw }
+                    ),
+                    message = "정답이 수정되었습니다."
+                )
             }
         }
     }

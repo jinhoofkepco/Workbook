@@ -5,6 +5,7 @@ import android.graphics.Canvas as AndroidCanvas
 import android.graphics.Color as AndroidColor
 import android.graphics.Paint
 import android.graphics.Path as AndroidPath
+import android.view.InputDevice
 import android.view.MotionEvent
 import android.view.View
 import androidx.compose.foundation.Canvas
@@ -13,6 +14,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
@@ -20,12 +22,12 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -37,6 +39,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -47,10 +50,13 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.ui.zIndex
 import org.json.JSONArray
 import org.json.JSONObject
+import kotlin.math.roundToInt
 import kotlin.math.sqrt
 
 class Stroke(
@@ -129,10 +135,22 @@ class HandwritingState {
     private val _strokes = mutableListOf<Stroke>()
     val strokes: List<Stroke> get() = _strokes
     internal var onChanged: (() -> Unit)? = null
+    private var contentWidthPx: Float = 0f
+    private var contentHeightPx: Float = 0f
+    private var imageBounds: WorksheetImageBounds? = null
 
     fun clear() {
         _strokes.clear()
         onChanged?.invoke()
+    }
+
+    fun updateContentSize(widthPx: Float, heightPx: Float) {
+        contentWidthPx = widthPx
+        contentHeightPx = heightPx
+    }
+
+    fun updateImageBounds(bounds: WorksheetImageBounds) {
+        imageBounds = bounds
     }
 
     fun start(position: Offset, color: Color, width: Float, kind: StrokeKind) {
@@ -145,6 +163,13 @@ class HandwritingState {
         if (changed) {
             onChanged?.invoke()
         }
+    }
+
+    internal fun removeLastStrokeIfSinglePoint() {
+        val lastStroke = _strokes.lastOrNull() ?: return
+        if (lastStroke.points.size != 1) return
+        _strokes.removeAt(_strokes.lastIndex)
+        onChanged?.invoke()
     }
 
     fun eraseAt(position: Offset, radius: Float) {
@@ -175,6 +200,14 @@ class HandwritingState {
         onChanged?.invoke()
     }
 
+    fun loadFromVectorJson(vectorJson: String?) {
+        _strokes.clear()
+        if (!vectorJson.isNullOrBlank()) {
+            _strokes.addAll(parseStrokes(vectorJson))
+        }
+        onChanged?.invoke()
+    }
+
     fun toVectorJson(): String {
         val strokeArray = JSONArray()
         _strokes.forEach { stroke ->
@@ -190,7 +223,56 @@ class HandwritingState {
                     .put("points", points)
             )
         }
-        return JSONObject().put("strokes", strokeArray).toString()
+        val root = JSONObject()
+            .put("strokes", strokeArray)
+            .put("contentWidth", contentWidthPx)
+            .put("contentHeight", contentHeightPx)
+        imageBounds?.let { bounds ->
+            root.put(
+                "imageBounds",
+                JSONObject()
+                    .put("left", bounds.left)
+                    .put("top", bounds.top)
+                    .put("width", bounds.width)
+                    .put("height", bounds.height)
+            )
+        }
+        return root.toString()
+    }
+
+    private fun parseStrokes(vectorJson: String): List<Stroke> {
+        return runCatching {
+            val root = JSONObject(vectorJson)
+            val strokes = root.optJSONArray("strokes") ?: return@runCatching emptyList()
+            List(strokes.length()) { strokeIndex ->
+                val stroke = strokes.getJSONObject(strokeIndex)
+                val points = stroke.optJSONArray("points")
+                Stroke(
+                    points = if (points == null) {
+                        emptyList()
+                    } else {
+                        List(points.length()) { pointIndex ->
+                            val point = points.getJSONObject(pointIndex)
+                            Offset(
+                                x = point.optDouble("x", 0.0).toFloat(),
+                                y = point.optDouble("y", 0.0).toFloat()
+                            )
+                        }
+                    },
+                    color = parseStrokeColor(stroke.optString("color")),
+                    width = stroke.optDouble("width", 5.0).toFloat(),
+                    kind = stroke.optString("kind")
+                        .takeIf { it.isNotBlank() }
+                        ?.let { runCatching { StrokeKind.valueOf(it) }.getOrNull() }
+                        ?: if (stroke.optDouble("width", 5.0) >= 12.0) StrokeKind.Highlighter else StrokeKind.Pen
+                )
+            }.filter { it.points.isNotEmpty() }
+        }.getOrDefault(emptyList())
+    }
+
+    private fun parseStrokeColor(value: String?): Color {
+        if (value.isNullOrBlank()) return Color(0xFF111827)
+        return runCatching { Color(AndroidColor.parseColor(value)) }.getOrDefault(Color(0xFF111827))
     }
 }
 
@@ -202,61 +284,88 @@ fun HandwritingCanvas(
     state: HandwritingState,
     modifier: Modifier = Modifier,
     contentHeight: Dp = 1200.dp,
-    backgroundContent: @Composable () -> Unit = {}
+    stylusOnlyDrawing: Boolean = true,
+    inputOverlayEnabled: Boolean = true,
+    toolbarLeadingContent: @Composable RowScope.() -> Unit = {},
+    toolbarTrailingContent: @Composable RowScope.() -> Unit = {},
+    backgroundContent: @Composable () -> Unit = {},
+    foregroundContent: @Composable BoxScope.() -> Unit = {}
 ) {
-    val scrollState = rememberScrollState()
     var drawingEnabled by remember { mutableStateOf(true) }
     var currentTool by remember { mutableStateOf(DrawingTools.first()) }
-    var penWidth by remember { mutableStateOf(5f) }
+    var penWidth by remember { mutableStateOf(PenWidthOptions.first()) }
+    var scrollOffsetPx by remember { mutableStateOf(0f) }
     val eraserRadius = 22.dp
     val density = LocalDensity.current
 
     BoxWithConstraints(
-        modifier = modifier.background(Color(0xFFFAFAFA), RoundedCornerShape(8.dp))
+        modifier = modifier
+            .background(Color(0xFFFAFAFA), RoundedCornerShape(8.dp))
+            .clipToBounds()
     ) {
+        val contentHeightPx = with(density) { contentHeight.toPx() }
+        val viewportHeightPx = with(density) { maxHeight.toPx() }
+        state.updateContentSize(with(density) { maxWidth.toPx() }, contentHeightPx)
+        val maxScrollPx = (contentHeightPx - viewportHeightPx).coerceAtLeast(0f)
+        scrollOffsetPx = scrollOffsetPx.coerceIn(0f, maxScrollPx)
+
         Box(
             modifier = Modifier
-                .fillMaxSize()
-                .verticalScroll(scrollState)
+                .fillMaxWidth()
+                .height(contentHeight)
+                .offset { IntOffset(0, -scrollOffsetPx.roundToInt()) }
         ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(contentHeight)
-            ) {
-                Canvas(modifier = Modifier.fillMaxSize()) {
-                    val lineGap = 36.dp.toPx()
-                    var y = lineGap
-                    while (y < size.height) {
-                        drawLine(
-                            color = Color(0xFFE5E7EB),
-                            start = Offset(0f, y),
-                            end = Offset(size.width, y),
-                            strokeWidth = 1.2f
-                        )
-                        y += lineGap
-                    }
+            Canvas(modifier = Modifier.fillMaxSize()) {
+                val lineGap = 36.dp.toPx()
+                var y = lineGap
+                while (y < size.height) {
+                    drawLine(
+                        color = Color(0xFFE5E7EB),
+                        start = Offset(0f, y),
+                        end = Offset(size.width, y),
+                        strokeWidth = 1.2f
+                    )
+                    y += lineGap
                 }
-                Box(modifier = Modifier.fillMaxSize()) {
-                    backgroundContent()
-                }
-                AndroidView(
-                    factory = { context ->
-                        InkDrawingView(context).apply {
-                            bindState(state)
-                        }
-                    },
-                    update = { view ->
-                        view.bindState(state)
-                        view.drawingEnabled = drawingEnabled
-                        view.currentTool = currentTool
-                        view.penWidth = penWidth
-                        view.eraserRadiusPx = with(density) { eraserRadius.toPx() }
-                    },
-                    modifier = Modifier
-                        .fillMaxSize()
-                )
             }
+            Box(modifier = Modifier.fillMaxSize()) {
+                backgroundContent()
+            }
+        }
+
+        if (inputOverlayEnabled) {
+            AndroidView(
+                factory = { context ->
+                    InkDrawingView(context).apply {
+                        bindState(state)
+                    }
+                },
+                update = { view ->
+                    view.bindState(state)
+                    view.drawingEnabled = drawingEnabled
+                    view.currentTool = currentTool
+                    view.penWidth = penWidth
+                    view.eraserRadiusPx = with(density) { eraserRadius.toPx() }
+                    view.stylusOnlyDrawing = stylusOnlyDrawing
+                    view.contentScrollOffsetPx = scrollOffsetPx
+                    view.onFingerScroll = { delta ->
+                        scrollOffsetPx = (scrollOffsetPx + delta).coerceIn(0f, maxScrollPx)
+                    }
+                },
+                modifier = Modifier
+                    .fillMaxSize()
+                    .zIndex(1f)
+            )
+        }
+
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(contentHeight)
+                .offset { IntOffset(0, -scrollOffsetPx.roundToInt()) }
+                .zIndex(2f)
+        ) {
+            foregroundContent()
         }
 
         Canvas(
@@ -267,11 +376,9 @@ fun HandwritingCanvas(
                 .padding(vertical = 8.dp, horizontal = 2.dp)
         ) {
             drawRoundRect(color = Color(0xFFE5E7EB), cornerRadius = CornerRadius(8f, 8f))
-            val maxScroll = scrollState.maxValue
-            if (maxScroll > 0) {
-                val contentPixels = size.height + maxScroll
-                val thumbHeight = (size.height * size.height / contentPixels).coerceAtLeast(48f)
-                val y = scrollState.value.toFloat() / maxScroll.toFloat() * (size.height - thumbHeight)
+            if (maxScrollPx > 0f) {
+                val thumbHeight = (size.height * size.height / contentHeightPx).coerceAtLeast(48f)
+                val y = scrollOffsetPx / maxScrollPx * (size.height - thumbHeight)
                 drawRoundRect(
                     color = Color(0xFF6B7280),
                     topLeft = Offset(0f, y),
@@ -283,8 +390,19 @@ fun HandwritingCanvas(
 
         Row(
             modifier = Modifier
+                .align(Alignment.TopStart)
+                .padding(top = 8.dp, start = 18.dp)
+                .zIndex(4f),
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            toolbarLeadingContent()
+        }
+
+        Row(
+            modifier = Modifier
                 .align(Alignment.TopEnd)
-                .padding(top = 8.dp, end = 18.dp),
+                .padding(top = 8.dp, end = 18.dp)
+                .zIndex(4f),
             horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             Button(onClick = { drawingEnabled = !drawingEnabled }) {
@@ -313,6 +431,7 @@ fun HandwritingCanvas(
                     drawingEnabled = true
                 }
             )
+            toolbarTrailingContent()
         }
     }
 }
@@ -421,7 +540,13 @@ private class InkDrawingView(context: Context) : View(context) {
     private var state: HandwritingState? = null
     private var activePointerId = MotionEvent.INVALID_POINTER_ID
     private var activeToolKind = ToolKind.Pen
+    private var activePointerStartedByFinger = false
+    private var fingerScrollPointerId = MotionEvent.INVALID_POINTER_ID
+    private var fingerScrollActive = false
+    private var lastFingerScrollY = 0f
     private var eraserCenter: Offset? = null
+    private var twoFingerScrollActive = false
+    private var lastTwoFingerScrollY = 0f
 
     var drawingEnabled: Boolean = true
         set(value) {
@@ -429,14 +554,26 @@ private class InkDrawingView(context: Context) : View(context) {
             isClickable = value
             if (!value) {
                 activePointerId = MotionEvent.INVALID_POINTER_ID
+                activePointerStartedByFinger = false
+                fingerScrollPointerId = MotionEvent.INVALID_POINTER_ID
+                fingerScrollActive = false
                 eraserCenter = null
+                twoFingerScrollActive = false
             }
             postInvalidateOnAnimation()
         }
 
     var currentTool: DrawingTool = DrawingTools.first()
-    var penWidth: Float = 5f
+    var penWidth: Float = PenWidthOptions.first()
     var eraserRadiusPx: Float = 22f
+    var stylusOnlyDrawing: Boolean = true
+    var contentScrollOffsetPx: Float = 0f
+        set(value) {
+            if (field == value) return
+            field = value
+            postInvalidateOnAnimation()
+        }
+    var onFingerScroll: ((Float) -> Unit)? = null
 
     init {
         setWillNotDraw(false)
@@ -460,37 +597,81 @@ private class InkDrawingView(context: Context) : View(context) {
     }
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
-        if (!drawingEnabled) return false
         val currentState = state ?: return false
         val action = event.actionMasked
+        if (event.fingerPointerCount() >= 2 && (action == MotionEvent.ACTION_POINTER_DOWN || action == MotionEvent.ACTION_MOVE)) {
+            if (!twoFingerScrollActive) {
+                startTwoFingerScroll(currentState, event)
+            } else if (action == MotionEvent.ACTION_MOVE) {
+                handleTwoFingerScroll(event)
+            }
+            return true
+        }
+        if (twoFingerScrollActive) {
+            when (action) {
+                MotionEvent.ACTION_POINTER_UP -> {
+                    continueTwoFingerScrollAfterPointerUp(event)
+                    return true
+                }
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    finishStroke()
+                    return true
+                }
+            }
+        }
         when (action) {
             MotionEvent.ACTION_DOWN -> {
+                val pointerIndex = event.actionIndex
+                if (event.isStylusLike(pointerIndex) && drawingEnabled) {
+                    parent?.requestDisallowInterceptTouchEvent(true)
+                    requestUnbufferedDispatch(event)
+                    activePointerId = event.getPointerId(pointerIndex)
+                    activeToolKind = eventToolKind(event, pointerIndex)
+                    activePointerStartedByFinger = false
+                    handlePoint(currentState, event.contentXFor(pointerIndex), event.contentYFor(pointerIndex), start = true)
+                    return true
+                }
+                if (event.getToolType(pointerIndex) == MotionEvent.TOOL_TYPE_FINGER) {
+                    startFingerScroll(event, pointerIndex)
+                    return true
+                }
+                if (stylusOnlyDrawing) {
+                    return false
+                }
                 parent?.requestDisallowInterceptTouchEvent(true)
                 requestUnbufferedDispatch(event)
-                val pointerIndex = event.actionIndex
                 activePointerId = event.getPointerId(pointerIndex)
                 activeToolKind = eventToolKind(event, pointerIndex)
-                handlePoint(currentState, event.xFor(pointerIndex), event.yFor(pointerIndex), start = true)
+                activePointerStartedByFinger = event.getToolType(pointerIndex) == MotionEvent.TOOL_TYPE_FINGER
+                handlePoint(currentState, event.contentXFor(pointerIndex), event.contentYFor(pointerIndex), start = true)
                 return true
             }
             MotionEvent.ACTION_MOVE -> {
+                if (fingerScrollActive) {
+                    handleFingerScroll(event)
+                    return true
+                }
                 val pointerIndex = event.findPointerIndex(activePointerId)
                 if (pointerIndex < 0) return true
                 for (historyIndex in 0 until event.historySize) {
                     handlePoint(
                         currentState,
                         event.getHistoricalX(pointerIndex, historyIndex),
-                        event.getHistoricalY(pointerIndex, historyIndex),
+                        event.getHistoricalY(pointerIndex, historyIndex) + contentScrollOffsetPx,
                         start = false
                     )
                 }
-                handlePoint(currentState, event.xFor(pointerIndex), event.yFor(pointerIndex), start = false)
+                handlePoint(currentState, event.contentXFor(pointerIndex), event.contentYFor(pointerIndex), start = false)
                 return true
             }
             MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                if (fingerScrollActive) {
+                    finishFingerScroll()
+                    return true
+                }
                 val pointerIndex = event.findPointerIndex(activePointerId).takeIf { it >= 0 } ?: event.actionIndex
                 if (action == MotionEvent.ACTION_UP && pointerIndex in 0 until event.pointerCount) {
-                    handlePoint(currentState, event.xFor(pointerIndex), event.yFor(pointerIndex), start = false)
+                    handlePoint(currentState, event.contentXFor(pointerIndex), event.contentYFor(pointerIndex), start = false)
                 }
                 finishStroke()
                 return true
@@ -501,6 +682,8 @@ private class InkDrawingView(context: Context) : View(context) {
 
     override fun onDraw(canvas: AndroidCanvas) {
         super.onDraw(canvas)
+        canvas.save()
+        canvas.translate(0f, -contentScrollOffsetPx)
         state?.strokes?.forEach { stroke ->
             strokePaint.color = stroke.color.toArgb()
             strokePaint.strokeWidth = stroke.width
@@ -523,6 +706,7 @@ private class InkDrawingView(context: Context) : View(context) {
                 canvas.drawCircle(center.x, center.y, eraserRadiusPx, eraserPaint)
             }
         }
+        canvas.restore()
     }
 
     private fun eventToolKind(event: MotionEvent, pointerIndex: Int): ToolKind {
@@ -552,9 +736,85 @@ private class InkDrawingView(context: Context) : View(context) {
         }
     }
 
+    private fun MotionEvent.contentXFor(pointerIndex: Int): Float = getX(pointerIndex)
+
+    private fun MotionEvent.contentYFor(pointerIndex: Int): Float = getY(pointerIndex) + contentScrollOffsetPx
+
+    private fun startTwoFingerScroll(state: HandwritingState, event: MotionEvent) {
+        if (activePointerStartedByFinger) {
+            state.removeLastStrokeIfSinglePoint()
+        }
+        activePointerId = MotionEvent.INVALID_POINTER_ID
+        activePointerStartedByFinger = false
+        fingerScrollPointerId = MotionEvent.INVALID_POINTER_ID
+        fingerScrollActive = false
+        eraserCenter = null
+        twoFingerScrollActive = true
+        lastTwoFingerScrollY = event.averageFingerY()
+        parent?.requestDisallowInterceptTouchEvent(true)
+        postInvalidateOnAnimation()
+    }
+
+    private fun handleTwoFingerScroll(event: MotionEvent) {
+        val y = event.averageFingerY()
+        val deltaY = y - lastTwoFingerScrollY
+        if (deltaY != 0f) {
+            onFingerScroll?.invoke(-deltaY)
+            lastTwoFingerScrollY = y
+        }
+    }
+
+    private fun startFingerScroll(event: MotionEvent, pointerIndex: Int) {
+        activePointerId = MotionEvent.INVALID_POINTER_ID
+        activePointerStartedByFinger = false
+        eraserCenter = null
+        fingerScrollPointerId = event.getPointerId(pointerIndex)
+        fingerScrollActive = true
+        lastFingerScrollY = event.getY(pointerIndex)
+        parent?.requestDisallowInterceptTouchEvent(true)
+        postInvalidateOnAnimation()
+    }
+
+    private fun handleFingerScroll(event: MotionEvent) {
+        val pointerIndex = event.findPointerIndex(fingerScrollPointerId)
+        if (pointerIndex < 0) return
+        val y = event.getY(pointerIndex)
+        val deltaY = y - lastFingerScrollY
+        if (deltaY != 0f) {
+            onFingerScroll?.invoke(-deltaY)
+            lastFingerScrollY = y
+        }
+    }
+
+    private fun finishFingerScroll() {
+        fingerScrollPointerId = MotionEvent.INVALID_POINTER_ID
+        fingerScrollActive = false
+        parent?.requestDisallowInterceptTouchEvent(false)
+        postInvalidateOnAnimation()
+    }
+
+    private fun continueTwoFingerScrollAfterPointerUp(event: MotionEvent) {
+        val liftedPointerId = event.getPointerId(event.actionIndex)
+        if (event.fingerPointerCount(excludingPointerId = liftedPointerId) >= 2) {
+            lastTwoFingerScrollY = event.averageFingerY(excludingPointerId = liftedPointerId)
+        } else {
+            activePointerId = MotionEvent.INVALID_POINTER_ID
+            activePointerStartedByFinger = false
+            fingerScrollPointerId = MotionEvent.INVALID_POINTER_ID
+            fingerScrollActive = false
+            eraserCenter = null
+            twoFingerScrollActive = false
+            postInvalidateOnAnimation()
+        }
+    }
+
     private fun finishStroke() {
         activePointerId = MotionEvent.INVALID_POINTER_ID
+        activePointerStartedByFinger = false
+        fingerScrollPointerId = MotionEvent.INVALID_POINTER_ID
+        fingerScrollActive = false
         eraserCenter = null
+        twoFingerScrollActive = false
         parent?.requestDisallowInterceptTouchEvent(false)
         postInvalidateOnAnimation()
     }
@@ -563,6 +823,41 @@ private class InkDrawingView(context: Context) : View(context) {
 private fun MotionEvent.xFor(pointerIndex: Int): Float = getX(pointerIndex)
 
 private fun MotionEvent.yFor(pointerIndex: Int): Float = getY(pointerIndex)
+
+private fun MotionEvent.isStylusLike(pointerIndex: Int): Boolean {
+    if (isFromSource(InputDevice.SOURCE_STYLUS)) return true
+    return when (getToolType(pointerIndex)) {
+        MotionEvent.TOOL_TYPE_STYLUS,
+        MotionEvent.TOOL_TYPE_ERASER -> true
+        else -> false
+    }
+}
+
+private fun MotionEvent.fingerPointerCount(
+    excludingPointerId: Int = MotionEvent.INVALID_POINTER_ID
+): Int {
+    var count = 0
+    for (index in 0 until pointerCount) {
+        if (getPointerId(index) != excludingPointerId && getToolType(index) == MotionEvent.TOOL_TYPE_FINGER) {
+            count += 1
+        }
+    }
+    return count
+}
+
+private fun MotionEvent.averageFingerY(
+    excludingPointerId: Int = MotionEvent.INVALID_POINTER_ID
+): Float {
+    var total = 0f
+    var count = 0
+    for (index in 0 until pointerCount) {
+        if (getPointerId(index) != excludingPointerId && getToolType(index) == MotionEvent.TOOL_TYPE_FINGER) {
+            total += getY(index)
+            count += 1
+        }
+    }
+    return if (count == 0) 0f else total / count.toFloat()
+}
 
 private fun Color.toHexString(): String = "#%08X".format(toArgb())
 

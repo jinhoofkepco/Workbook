@@ -174,7 +174,7 @@ class WorkbookImportService(
                     label = field.optString("label", "답 ${index + 1}"),
                     fieldType = enumOrDefault(field.optString("fieldType"), AnswerFieldType.NUMBER),
                     orderIndex = field.optInt("orderIndex", index + 1),
-                    positionJson = field.opt("positionJson")?.toJsonString(),
+                    positionJson = buildAnswerFieldMetaJson(field),
                     required = field.optBoolean("required", true)
                 )
             )
@@ -208,12 +208,13 @@ class WorkbookImportService(
         for (index in 0 until rules.length()) {
             val rule = rules.getJSONObject(index)
             val correct = rule.optString("correctAnswerRaw")
+            val answerType = enumOrDefault(rule.optString("answerType"), AnswerType.INTEGER)
             dao.upsertAnswerRule(
                 AnswerRuleEntity(
                     answerRuleId = rule.optString("answerRuleId").ifBlank { "$problemId-rule-$index" },
                     problemId = problemId,
                     answerFieldId = rule.optString("answerFieldId").ifBlank { null },
-                    answerType = enumOrDefault(rule.optString("answerType"), AnswerType.INTEGER),
+                    answerType = answerType,
                     correctAnswerRaw = correct,
                     normalizedAnswer = rule.optString("normalizedAnswer").ifBlank { correct.trim().replace(",", "") },
                     allowEquivalentFraction = rule.optBoolean("allowEquivalentFraction", false),
@@ -222,7 +223,11 @@ class WorkbookImportService(
                     allowMultipleAnswers = rule.optBoolean("allowMultipleAnswers", false),
                     acceptedAnswersJson = rule.opt("acceptedAnswersJson")?.toJsonString(),
                     unitType = enumOrDefault(rule.optString("unitType"), UnitType.NONE),
-                    manualGradingRequired = rule.optBoolean("manualGradingRequired", false)
+                    manualGradingRequired = rule.optBoolean("manualGradingRequired", false) ||
+                        rule.optBoolean("manualReviewRequired", false) ||
+                        rule.optBoolean("skipAutoGrading", false) ||
+                        answerType == AnswerType.MANUAL ||
+                        answerType == AnswerType.MANUAL_REVIEW
                 )
             )
         }
@@ -264,7 +269,12 @@ class WorkbookImportService(
     }
 
     private inline fun <reified T : Enum<T>> enumOrDefault(raw: String?, default: T): T {
-        return enumValues<T>().firstOrNull { it.name == raw } ?: default
+        val normalized = raw
+            ?.trim()
+            ?.replace("-", "_")
+            ?.uppercase()
+            .orEmpty()
+        return enumValues<T>().firstOrNull { it.name == normalized } ?: default
     }
 
     private fun findEntryBytes(entries: Map<String, ByteArray>, path: String): ByteArray? {
@@ -278,11 +288,51 @@ class WorkbookImportService(
     private fun buildImageLayoutJson(problemJson: JSONObject): String? {
         val crop = problemJson.opt("imageCropRectJson")
         val display = problemJson.opt("imageDisplayJson")
-        if (crop == null && display == null) return null
+        val gradingPolicy = problemJson.opt("gradingPolicy")
+        val solutionText = problemJson.optString("solutionText").ifBlank { null }
+        val teacherMemo = problemJson.optString("teacherMemo").ifBlank { null }
+        val answerNote = problemJson.optString("answerNote").ifBlank { null }
+        if (crop == null && display == null && gradingPolicy == null && solutionText == null && teacherMemo == null && answerNote == null) {
+            return null
+        }
         val root = JSONObject()
         if (crop != null) root.put("crop", crop)
         if (display != null) root.put("display", display)
+        if (gradingPolicy != null) root.put("gradingPolicy", gradingPolicy)
+        if (solutionText != null) root.put("solutionText", solutionText)
+        if (teacherMemo != null) root.put("teacherMemo", teacherMemo)
+        if (answerNote != null) root.put("answerNote", answerNote)
         return root.toString()
+    }
+
+    private fun buildAnswerFieldMetaJson(field: JSONObject): String? {
+        val rawPosition = field.opt("positionJson")
+        val meta = when (rawPosition) {
+            is JSONObject -> JSONObject(rawPosition.toString())
+            null -> JSONObject()
+            else -> JSONObject().put("position", rawPosition.toJsonString())
+        }
+        listOf(
+            "keyboardType",
+            "skipAutoGrading",
+            "manualReviewRequired",
+            "gradingPolicy",
+            "prefix",
+            "displayPrefix",
+            "suffix",
+            "displaySuffix",
+            "disabled",
+            "readOnly",
+            "displayValue",
+            "placeholder",
+            "choiceOptions",
+            "choiceStyle",
+            "choiceValueStyle",
+            "choiceMultiSelect"
+        ).forEach { key ->
+            if (field.has(key) && !field.isNull(key)) meta.put(key, field.get(key))
+        }
+        return if (meta.length() == 0) null else meta.toString()
     }
 
     private fun JSONObject.optIntOrNull(name: String): Int? = if (has(name) && !isNull(name)) optInt(name) else null

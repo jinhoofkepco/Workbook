@@ -3,6 +3,7 @@ package com.mathworkbook.app.ui.components
 import android.graphics.Color as AndroidColor
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -17,6 +18,7 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.Dp
 import org.json.JSONObject
 import java.io.File
 import kotlin.math.max
@@ -25,7 +27,8 @@ import kotlin.math.min
 @Composable
 fun SolutionVectorPreview(
     path: String?,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    height: Dp = 160.dp
 ) {
     if (path.isNullOrBlank()) {
         Text("풀이 기록 없음")
@@ -40,7 +43,7 @@ fun SolutionVectorPreview(
     Canvas(
         modifier = modifier
             .fillMaxWidth()
-            .height(160.dp)
+            .height(height)
             .background(Color(0xFFFAFAFA), RoundedCornerShape(8.dp))
     ) {
         val maxX = strokes.flatMap { it.points }.maxOfOrNull { it.x } ?: 1f
@@ -58,6 +61,34 @@ fun SolutionVectorPreview(
                     color = stroke.color,
                     style = Stroke(
                         width = (stroke.width * 0.7f).coerceIn(3.5f, 16f),
+                        cap = if (isHighlighter) StrokeCap.Butt else StrokeCap.Round,
+                        join = if (isHighlighter) StrokeJoin.Bevel else StrokeJoin.Round
+                    )
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun SolutionVectorOverlay(
+    path: String?,
+    modifier: Modifier = Modifier
+) {
+    if (path.isNullOrBlank()) return
+    val strokes = remember(path) { readStrokes(path) }
+    if (strokes.isEmpty()) return
+
+    Canvas(modifier = modifier.fillMaxSize()) {
+        strokes.forEach { stroke ->
+            val path = stroke.points.toPath()
+            if (path != null) {
+                val isHighlighter = stroke.kind == StrokeKind.Highlighter
+                drawPath(
+                    path = path,
+                    color = stroke.color,
+                    style = Stroke(
+                        width = stroke.width,
                         cap = if (isHighlighter) StrokeCap.Butt else StrokeCap.Round,
                         join = if (isHighlighter) StrokeJoin.Bevel else StrokeJoin.Round
                     )

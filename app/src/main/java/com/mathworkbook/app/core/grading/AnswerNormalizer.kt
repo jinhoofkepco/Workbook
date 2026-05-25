@@ -30,11 +30,25 @@ class AnswerNormalizer {
     }
 
     private fun removeUnitSuffixes(value: String, answerType: AnswerType): String {
-        return when (answerType) {
+        val strippedByType = when (answerType) {
             AnswerType.ANGLE -> value.removeSuffix("도").removeSuffix("°")
             AnswerType.MONEY -> value.removeSuffix("원")
             AnswerType.PERCENT -> value.removeSuffix("%")
             else -> value
+        }
+        val numericTypes = setOf(
+            AnswerType.INTEGER,
+            AnswerType.DECIMAL,
+            AnswerType.PERCENT,
+            AnswerType.ANGLE,
+            AnswerType.MONEY,
+            AnswerType.UNIT_VALUE
+        )
+        return if (answerType in numericTypes && strippedByType.toBigDecimalOrNull() == null) {
+            Regex("""^\s*([+-]?\d+(?:\.\d+)?)\s*[%\p{L}가-힣]+\s*$""")
+                .replace(strippedByType, "$1")
+        } else {
+            strippedByType
         }
     }
 }

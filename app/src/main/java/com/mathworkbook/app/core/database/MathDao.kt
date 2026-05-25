@@ -81,6 +81,15 @@ interface MathDao {
     @Query("DELETE FROM AttemptInputLogEntity WHERE attemptId IN (SELECT attemptId FROM PracticeAttemptEntity WHERE workbookId = :workbookId)")
     suspend fun deleteAttemptLogsForWorkbook(workbookId: String)
 
+    @Query("DELETE FROM AttemptInputLogEntity WHERE attemptId = :attemptId")
+    suspend fun deleteAttemptInputLogs(attemptId: String)
+
+    @Query("DELETE FROM ReviewEntity WHERE attemptId = :attemptId")
+    suspend fun deleteReviewsForAttempt(attemptId: String)
+
+    @Query("DELETE FROM PracticeAttemptEntity WHERE attemptId = :attemptId")
+    suspend fun deletePracticeAttempt(attemptId: String)
+
     @Query("DELETE FROM ReviewEntity WHERE problemId IN (SELECT problemId FROM ProblemEntity WHERE workbookId = :workbookId) OR attemptId IN (SELECT attemptId FROM PracticeAttemptEntity WHERE workbookId = :workbookId)")
     suspend fun deleteReviewsForWorkbook(workbookId: String)
 

@@ -22,6 +22,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import org.json.JSONObject
+import java.io.File
 
 data class PracticeUiState(
     val loading: Boolean = true,
@@ -37,6 +39,11 @@ data class PracticeUiState(
     val choices: List<ChoiceEntity> = emptyList(),
     val latestAttempt: PracticeAttemptEntity? = null,
     val latestLogs: List<AttemptInputLogEntity> = emptyList(),
+    val visibleAnswerLogs: List<AttemptInputLogEntity> = emptyList(),
+    val attemptsForProblem: List<PracticeAttemptEntity> = emptyList(),
+    val logsByAttempt: Map<String, List<AttemptInputLogEntity>> = emptyMap(),
+    val selectedStudentAttemptId: String? = null,
+    val masterNoteVectorJson: String? = null,
     val showCorrectAnswer: Boolean = false,
     val inputByField: Map<String, String> = emptyMap(),
     val selectedChoiceIds: Set<String> = emptySet(),
@@ -56,6 +63,7 @@ class PracticeViewModel(
     private val submitPracticeAnswerUseCase: SubmitPracticeAnswerUseCase
 ) : ViewModel() {
     private val studentId = "student-demo"
+    private var masterMode: Boolean = false
     private val _state = MutableStateFlow(PracticeUiState())
     val state: StateFlow<PracticeUiState> = _state
 
@@ -63,6 +71,15 @@ class PracticeViewModel(
         viewModelScope.launch {
             container.seedData.ensure()
             refreshWorkbooks()
+        }
+    }
+
+    fun setMasterMode(enabled: Boolean, reloadCurrent: Boolean = true) {
+        if (masterMode == enabled) return
+        masterMode = enabled
+        val current = _state.value
+        if (reloadCurrent && current.currentProblem != null) {
+            viewModelScope.launch { loadProblem(current.currentIndex, clearFeedback = true) }
         }
     }
 
@@ -189,6 +206,20 @@ class PracticeViewModel(
         _state.update { it.copy(activeFieldId = fieldId) }
     }
 
+    fun appendToActiveField(value: String) {
+        val current = _state.value
+        val fieldId = current.activeFieldId ?: current.fields.firstOrNull()?.answerFieldId ?: return
+        val currentValue = current.inputByField[fieldId].orEmpty()
+        updateInput(fieldId, currentValue + value)
+    }
+
+    fun backspaceActiveField() {
+        val current = _state.value
+        val fieldId = current.activeFieldId ?: current.fields.firstOrNull()?.answerFieldId ?: return
+        val currentValue = current.inputByField[fieldId].orEmpty()
+        updateInput(fieldId, currentValue.dropLast(1))
+    }
+
     fun toggleChoice(choiceId: String) {
         val fieldId = _state.value.fields.firstOrNull()?.answerFieldId ?: return
         _state.update { current ->
@@ -203,10 +234,49 @@ class PracticeViewModel(
         }
     }
 
+    fun toggleStudentAttempt(attemptId: String) {
+        _state.update { current ->
+            current.copy(
+                selectedStudentAttemptId = if (current.selectedStudentAttemptId == attemptId) null else attemptId
+            )
+        }
+    }
+
+    fun deleteStudentAttempt(attemptId: String) {
+        val attempt = _state.value.attemptsForProblem.firstOrNull { it.attemptId == attemptId } ?: return
+        viewModelScope.launch {
+            dao.deleteAttemptInputLogs(attemptId)
+            dao.deleteReviewsForAttempt(attemptId)
+            dao.deletePracticeAttempt(attemptId)
+            attempt.solutionImagePath
+                ?.takeIf { it.isNotBlank() }
+                ?.let { path -> runCatching { File(path).delete() } }
+
+            _state.update { current ->
+                val attempts = current.attemptsForProblem.filterNot { it.attemptId == attemptId }
+                val logs = current.logsByAttempt - attemptId
+                val latest = attempts.firstOrNull()
+                current.copy(
+                    latestAttempt = latest,
+                    latestLogs = latest?.let { logs[it.attemptId].orEmpty() }.orEmpty(),
+                    visibleAnswerLogs = emptyList(),
+                    attemptsForProblem = attempts,
+                    logsByAttempt = logs,
+                    selectedStudentAttemptId = null,
+                    feedback = "풀이 기록을 삭제했습니다."
+                )
+            }
+        }
+    }
+
     fun showHint() {
         _state.update { current ->
             current.copy(feedback = current.currentProblem?.hintText ?: "힌트가 없는 문제입니다.")
         }
+    }
+
+    fun clearFeedback() {
+        _state.update { it.copy(feedback = null) }
     }
 
     fun toggleCorrectAnswer() {
@@ -235,15 +305,26 @@ class PracticeViewModel(
                 solutionImagePath = solutionPath
             )
             val shouldClearAnswer = !result.gradingResult.isCorrect && !result.gradingResult.requiresManualReview
+            val shouldMoveNext = result.gradingResult.isCorrect || result.gradingResult.requiresManualReview || result.autoMoveNext
             val message = when {
                 result.gradingResult.requiresManualReview -> "검토자가 풀이를 확인해야 합니다."
                 result.gradingResult.isCorrect -> "정답입니다."
-                result.autoMoveNext -> "다음 문제로 넘어갈게."
-                else -> "다시 해보자. 남은 기회 ${result.remainingTryCount}번"
+                result.autoMoveNext -> "기회를 모두 사용해서 다음 문제로 넘어갈게."
+                else -> "다시 해보자. 남은 기회 ${result.remainingTryCount}/${result.attempt.maxInputTryCount}"
             }
+            val attemptsForProblem = dao.getPracticeAttemptsForProblem(studentId, problem.problemId)
+            val logsByAttempt = attemptsForProblem.associate { attempt ->
+                attempt.attemptId to dao.getAttemptInputLogs(attempt.attemptId)
+            }
+            val latestAttempt = attemptsForProblem.firstOrNull()
             _state.update {
                 it.copy(
                     submitting = false,
+                    latestAttempt = latestAttempt,
+                    latestLogs = latestAttempt?.let { attempt -> logsByAttempt[attempt.attemptId].orEmpty() }.orEmpty(),
+                    visibleAnswerLogs = logsByAttempt[result.attempt.attemptId].orEmpty(),
+                    attemptsForProblem = attemptsForProblem,
+                    logsByAttempt = logsByAttempt,
                     remainingTryCount = result.remainingTryCount,
                     feedback = message,
                     showCorrectMark = result.gradingResult.isCorrect,
@@ -251,12 +332,179 @@ class PracticeViewModel(
                     selectedChoiceIds = if (shouldClearAnswer) emptySet() else it.selectedChoiceIds
                 )
             }
-            if (result.autoMoveNext) {
-                val delayMillis = dao.getAppSettings()?.autoMoveDelayMillis ?: 1_000L
-                delay(delayMillis)
+            if (shouldMoveNext) {
+                delay(1_000L)
                 moveNext(clearFeedback = true)
             }
         }
+    }
+
+    fun saveMasterNote(vectorJson: String) {
+        val problem = _state.value.currentProblem ?: return
+        viewModelScope.launch {
+            fileStorage.saveMasterNoteVectorJson(problem.problemId, vectorJson)
+            _state.update {
+                it.copy(
+                    masterNoteVectorJson = vectorJson,
+                    feedback = "마스터 노트를 저장했습니다."
+                )
+            }
+        }
+    }
+
+    fun mergeMasterDrawingIntoProblemImage(vectorJson: String) {
+        val problem = _state.value.currentProblem ?: return
+        val imagePath = problem.imagePath?.takeIf { it.isNotBlank() }
+        if (imagePath == null) {
+            _state.update { it.copy(feedback = "합쳐 저장할 문제 사진이 없습니다.") }
+            return
+        }
+        viewModelScope.launch {
+            runCatching {
+                val mergedPath = fileStorage.mergeProblemImageWithVector(
+                    workbookId = problem.workbookId,
+                    problemId = problem.problemId,
+                    imagePath = imagePath,
+                    vectorJson = vectorJson
+                )
+                val updatedProblem = problem.copy(
+                    imagePath = mergedPath,
+                    updatedAt = System.currentTimeMillis()
+                )
+                dao.upsertProblem(updatedProblem)
+                val emptyNote = """{"strokes":[]}"""
+                fileStorage.saveMasterNoteVectorJson(problem.problemId, emptyNote)
+                _state.update { current ->
+                    current.copy(
+                        currentProblem = updatedProblem,
+                        problems = current.problems.map {
+                            if (it.problemId == updatedProblem.problemId) updatedProblem else it
+                        },
+                        masterNoteVectorJson = emptyNote,
+                        feedback = "사진 위 필기를 합쳐 새 문제 사진으로 저장했습니다."
+                    )
+                }
+            }.onFailure { error ->
+                _state.update {
+                    it.copy(feedback = error.message ?: "사진 저장에 실패했습니다.")
+                }
+            }
+        }
+    }
+
+    fun adjustCurrentProblemImageHeight(deltaDp: Int) {
+        val problem = _state.value.currentProblem ?: return
+        val updatedProblem = problem.withUpdatedImageDisplay { display ->
+            val currentHeight = display.optInt("heightDp", 300)
+            display.put("heightDp", (currentHeight + deltaDp).coerceIn(160, 1200))
+            display.put("widthFraction", display.optDouble("widthFraction", 1.0).coerceIn(0.35, 1.0))
+            if (!display.has("contentScale")) display.put("contentScale", "fit")
+        }
+        saveUpdatedProblem(updatedProblem, "그림 크기를 조정했습니다.")
+    }
+
+    fun setCurrentProblemImageMode(mode: String) {
+        val problem = _state.value.currentProblem ?: return
+        val updatedProblem = problem.withUpdatedImageDisplay { display ->
+            display.put("widthFraction", 1.0)
+            when (mode) {
+                "crop" -> {
+                    display.put("contentScale", "crop")
+                    display.put("heightDp", display.optInt("heightDp", 420).coerceAtLeast(420))
+                }
+                else -> {
+                    display.put("contentScale", "fillWidth")
+                }
+            }
+        }
+        saveUpdatedProblem(
+            updatedProblem,
+            if (mode == "crop") "그림을 크게 자르기 모드로 바꿨습니다." else "그림을 전체 맞춤으로 바꿨습니다."
+        )
+    }
+
+    fun updateCurrentProblemImageTransform(scale: Float, offsetX: Float, offsetY: Float, heightDp: Int?) {
+        val problem = _state.value.currentProblem ?: return
+        val updatedProblem = problem.withUpdatedImageDisplay { display ->
+            display.put("widthFraction", display.optDouble("widthFraction", 1.0).coerceIn(0.35, 1.0))
+            if (!display.has("contentScale")) display.put("contentScale", "fit")
+            heightDp?.let { display.put("heightDp", it.coerceIn(160, 1800)) }
+            display.put("scale", scale.toDouble().coerceIn(0.6, 2.2))
+            display.put("offsetX", offsetX.toDouble().coerceIn(-1600.0, 1600.0))
+            display.put("offsetY", offsetY.toDouble().coerceIn(-1600.0, 1600.0))
+        }
+        saveUpdatedProblem(updatedProblem, "그림 위치를 저장했습니다.")
+    }
+
+    fun saveCorrectAnswersFromCurrentInput() {
+        val current = _state.value
+        val problem = current.currentProblem ?: return
+        viewModelScope.launch {
+            if (problem.problemType == ProblemType.MULTIPLE_CHOICE) {
+                current.choices.forEach { choice ->
+                    dao.upsertChoice(choice.copy(isCorrect = current.selectedChoiceIds.contains(choice.choiceId)))
+                }
+            } else {
+                current.fields.filterNot { it.isDisabledForInput() }.forEach { field ->
+                    val cleaned = current.inputByField[field.answerFieldId].orEmpty().trim()
+                    val matchingRules = current.rules.filter { rule ->
+                        rule.answerFieldId == field.answerFieldId ||
+                            (current.fields.size == 1 && rule.answerFieldId == null)
+                    }
+                    matchingRules.firstOrNull()?.let { rule ->
+                        dao.upsertAnswerRule(
+                            rule.copy(
+                                correctAnswerRaw = cleaned,
+                                normalizedAnswer = cleaned.replace(",", "")
+                            )
+                        )
+                    }
+                }
+            }
+            val updatedRules = dao.getAnswerRules(problem.problemId)
+            val updatedChoices = dao.getChoices(problem.problemId)
+            _state.update {
+                it.copy(
+                    rules = updatedRules,
+                    choices = updatedChoices,
+                    feedback = "정답을 저장했습니다."
+                )
+            }
+        }
+    }
+
+    private fun saveUpdatedProblem(problem: ProblemEntity, message: String) {
+        viewModelScope.launch {
+            dao.upsertProblem(problem)
+            _state.update { current ->
+                current.copy(
+                    currentProblem = problem,
+                    problems = current.problems.map {
+                        if (it.problemId == problem.problemId) problem else it
+                    },
+                    feedback = message
+                )
+            }
+        }
+    }
+
+    private fun ProblemEntity.withUpdatedImageDisplay(update: (JSONObject) -> Unit): ProblemEntity {
+        val root = if (imageCropRectJson.isNullOrBlank()) {
+            JSONObject()
+        } else {
+            runCatching { JSONObject(imageCropRectJson.orEmpty()) }.getOrDefault(JSONObject())
+        }
+        val display = root.optJSONObject("display") ?: JSONObject().also { root.put("display", it) }
+        update(display)
+        return copy(imageCropRectJson = root.toString(), updatedAt = System.currentTimeMillis())
+    }
+
+    private fun AnswerFieldEntity.isDisabledForInput(): Boolean {
+        if (positionJson.isNullOrBlank()) return false
+        return runCatching {
+            val meta = JSONObject(positionJson.orEmpty())
+            meta.optBoolean("disabled", false) || meta.optBoolean("readOnly", false)
+        }.getOrDefault(false)
     }
 
     fun moveNext(clearFeedback: Boolean = false) {
@@ -326,12 +574,18 @@ class PracticeViewModel(
         val rules = dao.getAnswerRules(problem.problemId)
         val choices = dao.getChoices(problem.problemId)
         val openAttempt = dao.getOpenPracticeAttempt(studentId, problem.problemId)
-        val latestAttempt = dao.getPracticeAttemptsForProblem(studentId, problem.problemId).firstOrNull()
+        val attemptsForProblem = dao.getPracticeAttemptsForProblem(studentId, problem.problemId)
+        val logsByAttempt = attemptsForProblem.associate { attempt ->
+            attempt.attemptId to dao.getAttemptInputLogs(attempt.attemptId)
+        }
+        val latestAttempt = attemptsForProblem.firstOrNull()
         val latestLogs = latestAttempt?.let { dao.getAttemptInputLogs(it.attemptId) }.orEmpty()
         val maxTryCount = openAttempt?.maxInputTryCount
             ?: (dao.getAppSettings()?.defaultMaxInputTryCount ?: 3)
         val remaining = (maxTryCount - (openAttempt?.inputTryCount ?: 0)).coerceAtLeast(0)
         val activeFieldId = fields.firstOrNull()?.answerFieldId
+        val masterInputs = correctInputs(fields, rules)
+        val masterChoices = choices.filter { it.isCorrect }.mapTo(mutableSetOf()) { it.choiceId }
         _state.update {
             it.copy(
                 currentIndex = index,
@@ -341,9 +595,14 @@ class PracticeViewModel(
                 choices = choices,
                 latestAttempt = latestAttempt,
                 latestLogs = latestLogs,
+                visibleAnswerLogs = emptyList(),
+                attemptsForProblem = attemptsForProblem,
+                logsByAttempt = logsByAttempt,
+                selectedStudentAttemptId = null,
+                masterNoteVectorJson = if (masterMode) fileStorage.readMasterNoteVectorJson(problem.problemId) else null,
                 showCorrectAnswer = false,
-                inputByField = blankInputs(fields),
-                selectedChoiceIds = emptySet(),
+                inputByField = if (masterMode) masterInputs else blankInputs(fields),
+                selectedChoiceIds = if (masterMode) masterChoices else emptySet(),
                 activeFieldId = activeFieldId,
                 remainingTryCount = remaining,
                 maxTryCount = maxTryCount,
@@ -356,6 +615,22 @@ class PracticeViewModel(
 
     private fun blankInputs(fields: List<AnswerFieldEntity>): Map<String, String> {
         return fields.associate { field -> field.answerFieldId to "" }
+    }
+
+    private fun correctInputs(
+        fields: List<AnswerFieldEntity>,
+        rules: List<AnswerRuleEntity>
+    ): Map<String, String> {
+        return fields.associate { field ->
+            val values = rules
+                .filter { rule ->
+                    rule.answerFieldId == field.answerFieldId ||
+                        (fields.size == 1 && rule.answerFieldId == null)
+                }
+                .map { it.correctAnswerRaw }
+                .filter { it.isNotBlank() }
+            field.answerFieldId to values.joinToString(", ")
+        }
     }
 
     private fun keyboardTypeFor(problem: ProblemEntity, fields: List<AnswerFieldEntity>): KeyboardType {

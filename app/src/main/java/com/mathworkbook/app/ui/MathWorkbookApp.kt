@@ -69,6 +69,14 @@ fun MathWorkbookApp(container: AppContainer) {
     var pendingPracticeChapterId by remember { mutableStateOf<String?>(null) }
     var pendingPracticeProblemId by remember { mutableStateOf<String?>(null) }
     var examLaunchKey by remember { mutableIntStateOf(0) }
+    var questionTextSizeSp by remember {
+        mutableIntStateOf(container.appPreferences.getInt(PREF_PROBLEM_TEXT_SIZE_SP, DEFAULT_PROBLEM_TEXT_SIZE_SP))
+    }
+    val updateQuestionTextSizeSp: (Int) -> Unit = { value ->
+        val clamped = value.coerceIn(MIN_PROBLEM_TEXT_SIZE_SP, MAX_PROBLEM_TEXT_SIZE_SP)
+        questionTextSizeSp = clamped
+        container.appPreferences.edit().putInt(PREF_PROBLEM_TEXT_SIZE_SP, clamped).apply()
+    }
 
     MaterialTheme {
         Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
@@ -107,6 +115,7 @@ fun MathWorkbookApp(container: AppContainer) {
                                 PracticeScreen(
                                     viewModel = viewModel,
                                     isMasterMode = isMasterMode,
+                                    questionTextSizeSp = questionTextSizeSp,
                                     initialWorkbookId = pendingPracticeWorkbookId,
                                     initialChapterId = pendingPracticeChapterId,
                                     initialProblemId = pendingPracticeProblemId,
@@ -126,6 +135,7 @@ fun MathWorkbookApp(container: AppContainer) {
                                 ExamScreen(
                                     viewModel = viewModel,
                                     isMasterMode = isMasterMode,
+                                    questionTextSizeSp = questionTextSizeSp,
                                     modifier = Modifier.weight(1f)
                                 )
                             }
@@ -137,6 +147,8 @@ fun MathWorkbookApp(container: AppContainer) {
                         )
                         MasterScreen(
                             viewModel = viewModel,
+                            questionTextSizeSp = questionTextSizeSp,
+                            onChangeQuestionTextSize = updateQuestionTextSizeSp,
                             onExitMasterMode = {
                                 isMasterMode = false
                                 problemMode = ProblemMode.Practice
@@ -213,6 +225,11 @@ fun MathWorkbookApp(container: AppContainer) {
         )
     }
 }
+
+private const val PREF_PROBLEM_TEXT_SIZE_SP = "problem_text_size_sp"
+private const val DEFAULT_PROBLEM_TEXT_SIZE_SP = 24
+private const val MIN_PROBLEM_TEXT_SIZE_SP = 18
+private const val MAX_PROBLEM_TEXT_SIZE_SP = 36
 
 @Composable
 private fun BottomMenu(
