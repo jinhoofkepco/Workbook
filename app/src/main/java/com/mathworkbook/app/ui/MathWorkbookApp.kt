@@ -6,13 +6,14 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -75,6 +76,7 @@ fun MathWorkbookApp(container: AppContainer) {
     var keepMasterLogin by remember { mutableStateOf(false) }
     var pin by remember { mutableStateOf("") }
     var pinError by remember { mutableStateOf<String?>(null) }
+    var mainMenuExpanded by remember { mutableStateOf(false) }
     var toolsExpanded by remember { mutableStateOf(false) }
     var activeMasterTool by remember { mutableStateOf<MasterToolAction?>(null) }
     var dashboardRefreshKey by remember { mutableIntStateOf(0) }
@@ -188,12 +190,15 @@ fun MathWorkbookApp(container: AppContainer) {
 
                     BottomMenu(
                         selectedTab = selectedTab,
+                        mainMenuExpanded = mainMenuExpanded,
                         isMasterMode = isMasterMode,
                         toolsExpanded = toolsExpanded,
                         onSelectTab = { tab ->
                             selectedTab = tab
+                            mainMenuExpanded = false
                             toolsExpanded = false
                         },
+                        onToggleMainMenu = { mainMenuExpanded = !mainMenuExpanded },
                         onToggleTools = { toolsExpanded = !toolsExpanded },
                         onSelectTool = { tool ->
                             activeMasterTool = tool
@@ -206,8 +211,9 @@ fun MathWorkbookApp(container: AppContainer) {
             MasterToggleButton(
                 isMasterMode = isMasterMode,
                 modifier = Modifier
-                    .align(Alignment.TopStart)
-                    .padding(start = 8.dp, top = 32.dp),
+                    .align(Alignment.TopEnd)
+                    .statusBarsPadding()
+                    .padding(top = 8.dp, end = 8.dp),
                 onClick = {
                     if (isMasterMode) {
                         isMasterMode = false
@@ -329,9 +335,11 @@ private fun MasterToggleButton(
 @Composable
 private fun BottomMenu(
     selectedTab: RootTab,
+    mainMenuExpanded: Boolean,
     isMasterMode: Boolean,
     toolsExpanded: Boolean,
     onSelectTab: (RootTab) -> Unit,
+    onToggleMainMenu: () -> Unit,
     onToggleTools: () -> Unit,
     onSelectTool: (MasterToolAction) -> Unit
 ) {
@@ -348,18 +356,23 @@ private fun BottomMenu(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            MenuButton(
-                label = RootTab.Dashboard.label,
-                selected = selectedTab == RootTab.Dashboard,
-                onClick = { onSelectTab(RootTab.Dashboard) },
-                modifier = Modifier.weight(1f)
-            )
-            MenuButton(
-                label = RootTab.Problem.label,
-                selected = selectedTab == RootTab.Problem,
-                onClick = { onSelectTab(RootTab.Problem) },
-                modifier = Modifier.weight(1f)
-            )
+            RoundToolButton("메", selected = mainMenuExpanded, onClick = onToggleMainMenu)
+            if (mainMenuExpanded) {
+                MenuButton(
+                    label = RootTab.Dashboard.label,
+                    selected = selectedTab == RootTab.Dashboard,
+                    onClick = { onSelectTab(RootTab.Dashboard) },
+                    modifier = Modifier.weight(1f)
+                )
+                MenuButton(
+                    label = RootTab.Problem.label,
+                    selected = selectedTab == RootTab.Problem,
+                    onClick = { onSelectTab(RootTab.Problem) },
+                    modifier = Modifier.weight(1f)
+                )
+            } else {
+                Spacer(modifier = Modifier.weight(1f))
+            }
             if (isMasterMode) {
                 if (toolsExpanded) {
                     RoundToolButton("시험") { onSelectTool(MasterToolAction.ExamCreate) }
@@ -367,18 +380,19 @@ private fun BottomMenu(
                     RoundToolButton("ZIP") { onSelectTool(MasterToolAction.Import) }
                     RoundToolButton("로그") { onSelectTool(MasterToolAction.Logs) }
                 }
-                RoundToolButton(if (toolsExpanded) "닫기" else "도구", onToggleTools)
+                RoundToolButton(if (toolsExpanded) "닫기" else "도구", selected = toolsExpanded, onClick = onToggleTools)
             }
         }
     }
 }
 
 @Composable
-private fun RoundToolButton(label: String, onClick: () -> Unit) {
+private fun RoundToolButton(label: String, selected: Boolean = false, onClick: () -> Unit) {
     OutlinedButton(
         onClick = onClick,
         modifier = Modifier.size(48.dp),
         shape = CircleShape,
+        border = BorderStroke(1.5.dp, if (selected) MaterialTheme.colorScheme.primary else Color(0xFF7C7585)),
         contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp)
     ) {
         Text(label, style = MaterialTheme.typography.labelSmall, maxLines = 1)

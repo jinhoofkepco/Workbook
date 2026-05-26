@@ -162,11 +162,6 @@ private fun ProblemWorksheetLayout(
     }
     var rootLeft by remember { mutableStateOf(0f) }
     var rootTop by remember { mutableStateOf(0f) }
-    val labelColor = if (bodyMode == WorksheetBodyMode.Visible) {
-        MaterialTheme.colorScheme.primary
-    } else {
-        Color.Transparent
-    }
     val bodyColor = if (bodyMode == WorksheetBodyMode.Visible) {
         Color(0xFF111827)
     } else {
@@ -191,16 +186,9 @@ private fun ProblemWorksheetLayout(
                 rootLeft = rootPosition.x
                 rootTop = rootPosition.y
             }
-            .padding(horizontal = horizontalPadding, vertical = 22.dp),
+            .padding(start = horizontalPadding, end = horizontalPadding, top = 36.dp, bottom = 22.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
-        Text(
-            "문제",
-            modifier = Modifier.padding(horizontal = if (imageOnly) 24.dp else 0.dp),
-            style = MaterialTheme.typography.labelLarge,
-            color = labelColor
-        )
-
         if (problem == null) {
             Text("문제 없음", color = emptyColor)
             footerContent()

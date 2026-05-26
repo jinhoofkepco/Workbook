@@ -9,13 +9,14 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -50,6 +51,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.input.KeyboardType as ImeKeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -148,7 +150,7 @@ fun PracticeScreen(
         }
     }
 
-    Surface(modifier = modifier.fillMaxSize(), color = Color(0xFFF7F8FA)) {
+    Surface(modifier = modifier.fillMaxSize().statusBarsPadding(), color = Color(0xFFF7F8FA)) {
         if (state.loading) {
             Column(
                 modifier = Modifier.fillMaxSize(),
@@ -203,7 +205,7 @@ fun PracticeScreen(
                             inputOverlayEnabled = imageAdjustmentMode == WorksheetImageAdjustmentMode.None,
                             toolbarLeadingContent = {
                                 ToolbarNavButton(
-                                    text = "이전",
+                                    text = "‹",
                                     direction = NavDirection.Previous,
                                     onClick = {
                                         focusManager.clearFocus(force = true)
@@ -212,14 +214,22 @@ fun PracticeScreen(
                                 )
                                 OutlinedButton(
                                     onClick = viewModel::showHint,
-                                    modifier = Modifier.height(40.dp)
+                                    modifier = Modifier.height(30.dp),
+                                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp)
                                 ) {
-                                    Text("힌트")
+                                    Text("H", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
                                 }
+                            },
+                            toolbarCenterContent = {
+                                WorksheetLocationLabel(
+                                    workbookTitle = state.selectedWorkbook?.title.orEmpty(),
+                                    chapterTitle = state.selectedChapter?.title.orEmpty(),
+                                    position = "${state.currentIndex + 1}/${state.problems.size}"
+                                )
                             },
                             toolbarTrailingContent = {
                                 ToolbarNavButton(
-                                    text = "다음",
+                                    text = "›",
                                     direction = NavDirection.Next,
                                     onClick = {
                                         focusManager.clearFocus(force = true)
@@ -228,37 +238,43 @@ fun PracticeScreen(
                                 )
                             },
                             backgroundContent = {
-                                ProblemWorksheetBackground(
-                                    problem = state.currentProblem,
-                                    questionTextSizeSp = questionTextSizeSp,
-                                    onImageBoundsChanged = handwritingState::updateImageBounds,
-                                    imageAdjustmentMode = if (isMasterMode) imageAdjustmentMode else WorksheetImageAdjustmentMode.None,
-                                    imageTransformOverride = if (isMasterMode && imageAdjustmentMode != WorksheetImageAdjustmentMode.None) imageTransformDraft else null,
-                                    onImageTransformChanged = { imageTransformDraft = it }
-                                ) {
-                                    when {
-                                        isMasterMode && selectedStudentAttempt != null -> {
-                                            SolutionVectorOverlay(
-                                                path = selectedStudentAttempt.solutionImagePath,
-                                                modifier = Modifier.fillMaxSize()
-                                            )
-                                            ProblemWorksheetFooterOverlay(
-                                                problem = state.currentProblem,
-                                                questionTextSizeSp = questionTextSizeSp,
-                                                modifier = Modifier.fillMaxSize()
-                                            ) {
-                                                SubmittedAnswerHistory(
-                                                    logs = state.logsByAttempt[selectedStudentAttempt.attemptId].orEmpty(),
-                                                    fields = state.fields,
-                                                    modifier = Modifier.fillMaxWidth()
-                                                )
+                                Box(modifier = Modifier.fillMaxSize()) {
+                                    ProblemWorksheetBackground(
+                                        problem = state.currentProblem,
+                                        questionTextSizeSp = questionTextSizeSp,
+                                        onImageBoundsChanged = handwritingState::updateImageBounds,
+                                        imageAdjustmentMode = if (isMasterMode) imageAdjustmentMode else WorksheetImageAdjustmentMode.None,
+                                        imageTransformOverride = if (isMasterMode && imageAdjustmentMode != WorksheetImageAdjustmentMode.None) imageTransformDraft else null,
+                                        onImageTransformChanged = { imageTransformDraft = it }
+                                    ) {
+                                        when {
+                                            isMasterMode && selectedStudentAttempt != null -> {
+                                                ProblemWorksheetFooterOverlay(
+                                                    problem = state.currentProblem,
+                                                    questionTextSizeSp = questionTextSizeSp,
+                                                    modifier = Modifier.fillMaxSize()
+                                                ) {
+                                                    SubmittedAnswerHistory(
+                                                        logs = state.logsByAttempt[selectedStudentAttempt.attemptId].orEmpty(),
+                                                        fields = state.fields,
+                                                        modifier = Modifier.fillMaxWidth()
+                                                    )
+                                                }
+                                            }
+                                            isMasterMode -> {
+                                                MasterCorrectSolutionFooter(state)
+                                            }
+                                            answerInputMode == AnswerInputMode.FixedBottomCustomKeypad -> {
+                                                StudentAnswerStamp(state)
                                             }
                                         }
-                                        isMasterMode -> {
-                                            MasterCorrectSolutionFooter(state)
-                                        }
-                                        answerInputMode == AnswerInputMode.FixedBottomCustomKeypad -> {
-                                            StudentAnswerStamp(state)
+                                    }
+                                    if (isMasterMode && selectedStudentAttempt != null) {
+                                        selectedStudentAttempt.solutionImagePath?.let { path ->
+                                            SolutionVectorOverlay(
+                                                path = path,
+                                                modifier = Modifier.fillMaxSize()
+                                            )
                                         }
                                     }
                                 }
@@ -307,7 +323,6 @@ private fun WorkbookSelectionScreen(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Spacer(Modifier.width(48.dp))
                 Column(modifier = Modifier.weight(1f)) {
                     Text("문제집 선택", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
                     Text("풀 문제집을 고르면 세부 진도가 이어서 표시됩니다.", color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -392,34 +407,9 @@ private fun ProblemSolvingScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(14.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp)
+            .padding(horizontal = 8.dp, vertical = 4.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Spacer(Modifier.width(48.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = state.selectedWorkbook?.title.orEmpty(),
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold
-                )
-                Text(
-                    text = "${state.selectedChapter?.title.orEmpty()} · ${state.currentIndex + 1}/${state.problems.size}",
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-            Text(
-                text = if (isMasterMode) "마스터 · 연습" else "학생 · 연습",
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.primary
-            )
-        }
-
         Card(
             modifier = Modifier
                 .fillMaxWidth()
@@ -430,8 +420,8 @@ private fun ProblemSolvingScreen(
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(12.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                        .padding(4.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     Box(
                         modifier = Modifier
@@ -486,53 +476,6 @@ private fun ProblemSolvingScreen(
                         modifier = Modifier.fillMaxWidth()
                     )
                 }
-                if (isMasterMode) {
-                    if (selectedStudentAttempt == null) {
-                        MasterImageAdjustControls(
-                            mode = imageAdjustmentMode,
-                            onStartImage = onStartImageAdjust,
-                            onStartFrame = onStartFrameAdjust,
-                            onConfirm = onConfirmImageAdjust,
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                    }
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        if (selectedStudentAttempt != null) {
-                            OutlinedButton(
-                                onClick = { viewModel.deleteStudentAttempt(selectedStudentAttempt.attemptId) },
-                                modifier = Modifier.height(38.dp),
-                                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 0.dp)
-                            ) {
-                                Text("풀이 삭제")
-                            }
-                            Button(
-                                onClick = { viewModel.saveMasterNote(solutionJson()) },
-                                modifier = Modifier.height(38.dp),
-                                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 0.dp)
-                            ) {
-                                Text("노트 저장")
-                            }
-                        } else {
-                            OutlinedButton(
-                                onClick = { viewModel.mergeMasterDrawingIntoProblemImage(solutionJson()) },
-                                modifier = Modifier.height(38.dp),
-                                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 0.dp)
-                            ) {
-                                Text("사진에 합쳐 저장")
-                            }
-                            Button(
-                                onClick = { viewModel.saveMasterNote(solutionJson()) },
-                                modifier = Modifier.height(38.dp),
-                                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 0.dp)
-                            ) {
-                                Text("노트 저장")
-                            }
-                        }
-                    }
-                }
                 }
                 state.feedback?.let { message ->
                     PracticeFeedbackOverlay(
@@ -547,6 +490,20 @@ private fun ProblemSolvingScreen(
                     )
                 }
             }
+        }
+        if (isMasterMode) {
+            MasterBottomActionBar(
+                selectedStudentAttempt = selectedStudentAttempt,
+                imageAdjustmentMode = imageAdjustmentMode,
+                onSaveCorrectAnswers = viewModel::saveCorrectAnswersFromCurrentInput,
+                onStartImageAdjust = onStartImageAdjust,
+                onStartFrameAdjust = onStartFrameAdjust,
+                onConfirmImageAdjust = onConfirmImageAdjust,
+                onMergeIntoImage = { viewModel.mergeMasterDrawingIntoProblemImage(solutionJson()) },
+                onSaveNote = { viewModel.saveMasterNote(solutionJson()) },
+                onDeleteAttempt = { selectedStudentAttempt?.let { viewModel.deleteStudentAttempt(it.attemptId) } },
+                modifier = Modifier.fillMaxWidth()
+            )
         }
     }
 }
@@ -575,6 +532,42 @@ private val NextNavShape = GenericShape { size, _ ->
 }
 
 @Composable
+private fun WorksheetLocationLabel(
+    workbookTitle: String,
+    chapterTitle: String,
+    position: String
+) {
+    Card(
+        modifier = Modifier.widthIn(max = 520.dp),
+        colors = CardDefaults.cardColors(containerColor = Color(0xEFFFFFFF)),
+        shape = RoundedCornerShape(14.dp)
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = workbookTitle.ifBlank { "문제집" },
+                modifier = Modifier.weight(1f),
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Text(
+                text = "${chapterTitle.ifBlank { "단원" }} · $position",
+                modifier = Modifier.weight(1f),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+    }
+}
+
+@Composable
 private fun ToolbarNavButton(
     text: String,
     direction: NavDirection,
@@ -583,7 +576,7 @@ private fun ToolbarNavButton(
 ) {
     OutlinedButton(
         onClick = onClick,
-        modifier = modifier.height(36.dp),
+        modifier = modifier.height(30.dp),
         shape = if (direction == NavDirection.Previous) PreviousNavShape else NextNavShape,
         border = BorderStroke(1.4.dp, Color(0xFF2563EB)),
         colors = ButtonDefaults.outlinedButtonColors(
@@ -592,7 +585,7 @@ private fun ToolbarNavButton(
         ),
         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp)
     ) {
-        Text(text)
+        Text(text, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
     }
 }
 
@@ -763,6 +756,80 @@ private fun StudentAttemptProblemView(
 }
 
 @Composable
+private fun MasterBottomActionBar(
+    selectedStudentAttempt: PracticeAttemptEntity?,
+    imageAdjustmentMode: WorksheetImageAdjustmentMode,
+    onSaveCorrectAnswers: () -> Unit,
+    onStartImageAdjust: () -> Unit,
+    onStartFrameAdjust: () -> Unit,
+    onConfirmImageAdjust: () -> Unit,
+    onMergeIntoImage: () -> Unit,
+    onSaveNote: () -> Unit,
+    onDeleteAttempt: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val scrollState = rememberScrollState()
+    Surface(
+        modifier = modifier,
+        color = Color(0xF7FFFFFF),
+        shape = RoundedCornerShape(10.dp),
+        tonalElevation = 2.dp
+    ) {
+        Row(
+            modifier = Modifier
+                .horizontalScroll(scrollState)
+                .padding(horizontal = 6.dp, vertical = 4.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            MasterActionButton("정답저장", primary = true, enabled = selectedStudentAttempt == null, onClick = onSaveCorrectAnswers)
+            MasterActionButton("그림조정", enabled = selectedStudentAttempt == null, onClick = onStartImageAdjust)
+            MasterActionButton("테두리조정", enabled = selectedStudentAttempt == null, onClick = onStartFrameAdjust)
+            MasterActionButton(
+                "조정확정",
+                enabled = selectedStudentAttempt == null && imageAdjustmentMode != WorksheetImageAdjustmentMode.None,
+                onClick = onConfirmImageAdjust
+            )
+            MasterActionButton("사진합쳐저장", enabled = selectedStudentAttempt == null, onClick = onMergeIntoImage)
+            MasterActionButton("노트저장", primary = true, onClick = onSaveNote)
+            if (selectedStudentAttempt != null) {
+                MasterActionButton("풀이삭제", onClick = onDeleteAttempt)
+            }
+        }
+    }
+}
+
+@Composable
+private fun MasterActionButton(
+    label: String,
+    primary: Boolean = false,
+    enabled: Boolean = true,
+    onClick: () -> Unit
+) {
+    val modifier = Modifier.height(30.dp)
+    val contentPadding = PaddingValues(horizontal = 9.dp, vertical = 0.dp)
+    if (primary) {
+        Button(
+            onClick = onClick,
+            enabled = enabled,
+            modifier = modifier,
+            contentPadding = contentPadding
+        ) {
+            Text(label, style = MaterialTheme.typography.labelSmall, maxLines = 1)
+        }
+    } else {
+        OutlinedButton(
+            onClick = onClick,
+            enabled = enabled,
+            modifier = modifier,
+            contentPadding = contentPadding
+        ) {
+            Text(label, style = MaterialTheme.typography.labelSmall, maxLines = 1)
+        }
+    }
+}
+
+@Composable
 private fun MasterAnswerArea(
     state: PracticeUiState,
     viewModel: PracticeViewModel,
@@ -815,16 +882,6 @@ private fun MasterAnswerArea(
                 )
             }
         }
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-            Button(
-                onClick = viewModel::saveCorrectAnswersFromCurrentInput,
-                modifier = Modifier.height(38.dp),
-                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 0.dp)
-            ) {
-                Text("정답 저장")
-            }
-        }
-
     }
 }
 

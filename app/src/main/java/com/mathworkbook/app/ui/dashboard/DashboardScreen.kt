@@ -8,12 +8,11 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -65,7 +64,7 @@ fun DashboardScreen(
         viewModel.focusLocation(focusedWorkbookId, focusedChapterId)
     }
 
-    Surface(modifier = modifier.fillMaxSize(), color = Color(0xFFF7F8FA)) {
+    Surface(modifier = modifier.fillMaxSize().statusBarsPadding(), color = Color(0xFFF7F8FA)) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -79,18 +78,12 @@ fun DashboardScreen(
             }
 
             if (state.selectedWorkbookId == null) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Spacer(Modifier.width(48.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text("문제집 선택", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-                        Text(
-                            if (isMasterMode) "문제집을 길게 누르면 삭제할 수 있습니다." else "문제집을 골라 진도를 확인합니다.",
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    Text("문제집 선택", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                    Text(
+                        if (isMasterMode) "문제집을 길게 누르면 삭제할 수 있습니다." else "문제집을 골라 진도를 확인합니다.",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
                 LazyVerticalGrid(
                     columns = GridCells.Fixed(3),
@@ -122,7 +115,6 @@ fun DashboardScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .weight(0.2f)
-                            .padding(start = 48.dp)
                     )
                 }
                 LazyColumn(

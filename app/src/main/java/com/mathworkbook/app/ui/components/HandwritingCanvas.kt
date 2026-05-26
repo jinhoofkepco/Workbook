@@ -28,6 +28,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -120,10 +122,7 @@ private val DrawingTools = listOf(
     DrawingTool("black", "검정 펜", Color(0xFF111827), 5f, ToolKind.Pen),
     DrawingTool("red", "빨강 펜", Color(0xFFDC2626), 5f, ToolKind.Pen),
     DrawingTool("blue", "파랑 펜", Color(0xFF2563EB), 5f, ToolKind.Pen),
-    DrawingTool("green", "초록 펜", Color(0xFF16A34A), 5f, ToolKind.Pen),
-    DrawingTool("highlight_red", "형광 빨강", Color(0x44FF1744), 22f, ToolKind.Highlighter),
-    DrawingTool("highlight_blue", "형광 파랑", Color(0x4400B8FF), 22f, ToolKind.Highlighter),
-    DrawingTool("highlight_green", "형광 초록", Color(0x4400D084), 22f, ToolKind.Highlighter)
+    DrawingTool("highlight_yellow", "노랑 형광펜", Color(0x44FFD400), 18f, ToolKind.Highlighter)
 )
 
 private val EraserTool = DrawingTool("eraser", "영역 지우개", Color(0xFF6B7280), 44f, ToolKind.Eraser)
@@ -292,6 +291,7 @@ fun HandwritingCanvas(
     stylusOnlyDrawing: Boolean = true,
     inputOverlayEnabled: Boolean = true,
     toolbarLeadingContent: @Composable RowScope.() -> Unit = {},
+    toolbarCenterContent: @Composable BoxScope.() -> Unit = {},
     toolbarTrailingContent: @Composable RowScope.() -> Unit = {},
     backgroundContent: @Composable () -> Unit = {},
     foregroundContent: @Composable BoxScope.() -> Unit = {}
@@ -299,6 +299,7 @@ fun HandwritingCanvas(
     var drawingEnabled by remember { mutableStateOf(true) }
     var currentTool by remember { mutableStateOf(DrawingTools.first()) }
     var penWidth by remember { mutableStateOf(PenWidthOptions.first()) }
+    var toolMenuExpanded by remember { mutableStateOf(false) }
     var scrollOffsetPx by remember { mutableStateOf(0f) }
     val eraserRadius = 22.dp
     val density = LocalDensity.current
@@ -396,34 +397,62 @@ fun HandwritingCanvas(
         Row(
             modifier = Modifier
                 .align(Alignment.TopStart)
-                .padding(top = 8.dp, start = 18.dp)
+                .padding(top = 2.dp, start = 8.dp)
                 .zIndex(4f),
-            horizontalArrangement = Arrangement.spacedBy(6.dp)
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
         ) {
             toolbarLeadingContent()
+        }
+
+        Box(
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .padding(top = 2.dp)
+                .zIndex(4f),
+            contentAlignment = Alignment.Center
+        ) {
+            toolbarCenterContent()
         }
 
         Row(
             modifier = Modifier
                 .align(Alignment.TopEnd)
-                .padding(top = 8.dp, end = 18.dp)
+                .padding(top = 2.dp, end = 8.dp)
                 .zIndex(4f),
-            horizontalArrangement = Arrangement.spacedBy(6.dp)
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
         ) {
-            DrawingTools.forEachIndexed { index, tool ->
+            val visibleDrawingTool = if (currentTool.kind == ToolKind.Eraser) DrawingTools.first() else currentTool
+            PenWidthButton(
+                width = penWidth,
+                onClick = { penWidth = penWidth.nextPenWidth() }
+            )
+            Box {
                 ToolCircleButton(
-                    tool = tool,
-                    selected = drawingEnabled && currentTool.id == tool.id,
-                    onClick = {
-                        currentTool = tool
-                        drawingEnabled = true
-                    }
+                    tool = visibleDrawingTool,
+                    selected = drawingEnabled && currentTool.kind != ToolKind.Eraser,
+                    onClick = { toolMenuExpanded = true }
                 )
-                if (index == 0) {
-                    PenWidthButton(
-                        width = penWidth,
-                        onClick = { penWidth = penWidth.nextPenWidth() }
-                    )
+                DropdownMenu(
+                    expanded = toolMenuExpanded,
+                    onDismissRequest = { toolMenuExpanded = false }
+                ) {
+                    DrawingTools.forEach { tool ->
+                        DropdownMenuItem(
+                            text = { Text(tool.label) },
+                            onClick = {
+                                currentTool = tool
+                                drawingEnabled = true
+                                toolMenuExpanded = false
+                            },
+                            leadingIcon = {
+                                Box(
+                                    modifier = Modifier
+                                        .size(18.dp)
+                                        .background(tool.color, CircleShape)
+                                )
+                            }
+                        )
+                    }
                 }
             }
             EraserButton(
@@ -446,7 +475,7 @@ private fun PenWidthButton(
 ) {
     Box(
         modifier = Modifier
-            .size(34.dp)
+            .size(30.dp)
             .semantics { contentDescription = "펜 굵기 ${width.toInt()}" }
             .clickable(onClick = onClick)
             .background(Color.White, CircleShape)
@@ -474,7 +503,7 @@ private fun ToolCircleButton(
 ) {
     Box(
         modifier = Modifier
-            .size(34.dp)
+            .size(30.dp)
             .semantics { contentDescription = tool.label }
             .clickable(onClick = onClick)
             .border(
@@ -494,7 +523,7 @@ private fun EraserButton(
 ) {
     Box(
         modifier = Modifier
-            .size(38.dp)
+            .size(30.dp)
             .semantics { contentDescription = EraserTool.label }
             .clickable(onClick = onClick)
             .background(Color.White, RoundedCornerShape(19.dp))
@@ -505,7 +534,7 @@ private fun EraserButton(
             ),
         contentAlignment = Alignment.Center
     ) {
-        Canvas(modifier = Modifier.size(24.dp)) {
+        Canvas(modifier = Modifier.size(20.dp)) {
             rotate(degrees = -28f) {
                 val eraserSize = Size(18.dp.toPx(), 12.dp.toPx())
                 val topLeft = Offset(3.dp.toPx(), 6.dp.toPx())
@@ -532,14 +561,14 @@ private fun UndoButton(
 ) {
     Box(
         modifier = Modifier
-            .size(38.dp)
+            .size(30.dp)
             .semantics { contentDescription = "Undo" }
             .clickable(onClick = onClick)
             .background(Color.White, RoundedCornerShape(19.dp))
             .border(1.dp, Color(0xFFE5E7EB), RoundedCornerShape(19.dp)),
         contentAlignment = Alignment.Center
     ) {
-        Canvas(modifier = Modifier.size(24.dp)) {
+        Canvas(modifier = Modifier.size(20.dp)) {
             val color = Color(0xFF374151)
             val stroke = 2.2.dp.toPx()
             val center = Offset(size.width * 0.54f, size.height * 0.55f)
