@@ -122,7 +122,8 @@ fun MasterToolLayer(
             questionTextSizeSp = questionTextSizeSp,
             onDismiss = onDismiss,
             onChangeMaxTryCount = viewModel::updateDefaultMaxTryCount,
-            onChangeQuestionTextSize = onChangeQuestionTextSize
+            onChangeQuestionTextSize = onChangeQuestionTextSize,
+            onSetViewerEnabled = viewModel::setViewerEnabled
         )
         MasterToolAction.Import -> ImportDialog(
             onDismiss = onDismiss,
@@ -282,7 +283,8 @@ fun MasterScreen(
             questionTextSizeSp = questionTextSizeSp,
             onDismiss = { showSettings = false },
             onChangeMaxTryCount = viewModel::updateDefaultMaxTryCount,
-            onChangeQuestionTextSize = onChangeQuestionTextSize
+            onChangeQuestionTextSize = onChangeQuestionTextSize,
+            onSetViewerEnabled = viewModel::setViewerEnabled
         )
     }
 
@@ -758,13 +760,17 @@ private fun SettingsDialog(
     questionTextSizeSp: Int,
     onDismiss: () -> Unit,
     onChangeMaxTryCount: (Int) -> Unit,
-    onChangeQuestionTextSize: (Int) -> Unit
+    onChangeQuestionTextSize: (Int) -> Unit,
+    onSetViewerEnabled: (Boolean) -> Unit
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("마스터 설정") },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(
+                modifier = Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
                 Text("문제당 최대 답 입력 횟수입니다. 권장 범위는 1회에서 10회입니다.")
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedButton(onClick = { onChangeMaxTryCount(state.maxTryCount - 1) }) {
@@ -785,6 +791,31 @@ private fun SettingsDialog(
                     Button(onClick = { onChangeQuestionTextSize(questionTextSizeSp + 2) }) {
                         Text("+")
                     }
+                }
+                HorizontalDivider()
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Checkbox(
+                        checked = state.viewerServer.running,
+                        onCheckedChange = onSetViewerEnabled
+                    )
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text("viewer 연결", fontWeight = FontWeight.SemiBold)
+                        Text(
+                            "같은 Wi-Fi에서 완료된 풀이만 핸드폰으로 확인합니다.",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+                state.viewerServer.url?.let { url ->
+                    Card(colors = CardDefaults.cardColors(containerColor = Color(0xFFEFF6FF))) {
+                        Column(modifier = Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text("핸드폰에서 열 주소", fontWeight = FontWeight.SemiBold, color = Color(0xFF1D4ED8))
+                            Text(url, color = Color(0xFF1D4ED8))
+                        }
+                    }
+                }
+                state.viewerServer.message?.let { message ->
+                    Text(message, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         },

@@ -23,6 +23,7 @@ import com.mathworkbook.app.core.domain.RelativeRect
 import com.mathworkbook.app.core.domain.UnitType
 import com.mathworkbook.app.core.files.FileStorage
 import com.mathworkbook.app.core.files.WorkbookImportService
+import com.mathworkbook.app.core.viewer.ViewerServerState
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
@@ -41,6 +42,7 @@ data class MasterUiState(
     val correctAnswersByProblem: Map<String, List<String>> = emptyMap(),
     val examSessions: List<ExamSessionEntity> = emptyList(),
     val maxTryCount: Int = 3,
+    val viewerServer: ViewerServerState = ViewerServerState(),
     val message: String? = null
 )
 
@@ -92,6 +94,11 @@ class MasterViewModel(
         viewModelScope.launch {
             dao.observeExamSessions().collect { sessions ->
                 _state.update { it.copy(examSessions = sessions) }
+            }
+        }
+        viewModelScope.launch {
+            container.viewerServer.state.collect { viewerState ->
+                _state.update { it.copy(viewerServer = viewerState) }
             }
         }
     }
@@ -153,6 +160,14 @@ class MasterViewModel(
 
     fun showMessage(message: String) {
         _state.update { it.copy(message = message) }
+    }
+
+    fun setViewerEnabled(enabled: Boolean) {
+        if (enabled) {
+            container.viewerServer.start()
+        } else {
+            container.viewerServer.stop()
+        }
     }
 
     fun createExam(

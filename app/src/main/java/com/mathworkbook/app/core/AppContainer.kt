@@ -11,6 +11,7 @@ import com.mathworkbook.app.core.grading.DefaultGradingEngine
 import com.mathworkbook.app.core.usecase.AttemptLimitResolver
 import com.mathworkbook.app.core.usecase.SubmitExamUseCase
 import com.mathworkbook.app.core.usecase.SubmitPracticeAnswerUseCase
+import com.mathworkbook.app.core.viewer.ViewerServer
 
 class AppContainer(context: Context) {
     val appPreferences = context.applicationContext.getSharedPreferences(
@@ -20,6 +21,7 @@ class AppContainer(context: Context) {
     val database = AppDatabase.get(context)
     val dao = database.mathDao()
     val fileStorage = FileStorage(context)
+    val viewerServer = ViewerServer(context.applicationContext, dao)
     val workbookImportService = WorkbookImportService(context, dao, fileStorage)
 
     private val gradingEngine = DefaultGradingEngine()

@@ -78,6 +78,9 @@ interface MathDao {
     @Query("SELECT * FROM WorkbookEntity ORDER BY createdAt DESC")
     suspend fun getWorkbooksOnce(): List<WorkbookEntity>
 
+    @Query("SELECT * FROM WorkbookEntity WHERE workbookId = :workbookId LIMIT 1")
+    suspend fun getWorkbook(workbookId: String): WorkbookEntity?
+
     @Query("DELETE FROM AttemptInputLogEntity WHERE attemptId IN (SELECT attemptId FROM PracticeAttemptEntity WHERE workbookId = :workbookId)")
     suspend fun deleteAttemptLogsForWorkbook(workbookId: String)
 
@@ -144,6 +147,9 @@ interface MathDao {
     @Query("SELECT * FROM ChapterEntity WHERE workbookId = :workbookId ORDER BY orderIndex")
     suspend fun getChaptersOnce(workbookId: String): List<ChapterEntity>
 
+    @Query("SELECT * FROM ChapterEntity WHERE chapterId = :chapterId LIMIT 1")
+    suspend fun getChapter(chapterId: String): ChapterEntity?
+
     @Query("SELECT * FROM ProblemEntity ORDER BY workbookId, chapterId, orderIndex")
     fun observeAllProblems(): Flow<List<ProblemEntity>>
 
@@ -179,6 +185,12 @@ interface MathDao {
 
     @Query("SELECT * FROM PracticeAttemptEntity ORDER BY startedAt DESC")
     fun observePracticeAttempts(): Flow<List<PracticeAttemptEntity>>
+
+    @Query("SELECT * FROM PracticeAttemptEntity WHERE attemptId = :attemptId LIMIT 1")
+    suspend fun getPracticeAttempt(attemptId: String): PracticeAttemptEntity?
+
+    @Query("SELECT * FROM PracticeAttemptEntity WHERE finalStatus != 'IN_PROGRESS' ORDER BY submittedAt DESC, startedAt DESC LIMIT :limit")
+    suspend fun getCompletedPracticeAttempts(limit: Int): List<PracticeAttemptEntity>
 
     @Query("SELECT * FROM PracticeAttemptEntity WHERE studentId = :studentId AND problemId = :problemId ORDER BY startedAt DESC")
     suspend fun getPracticeAttemptsForProblem(studentId: String, problemId: String): List<PracticeAttemptEntity>
