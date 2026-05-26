@@ -253,19 +253,7 @@ fun PracticeScreen(
                                         onImageTransformChanged = { imageTransformDraft = it }
                                     ) {
                                         when {
-                                            isMasterMode && selectedStudentAttempt != null -> {
-                                                ProblemWorksheetFooterOverlay(
-                                                    problem = state.currentProblem,
-                                                    questionTextSizeSp = questionTextSizeSp,
-                                                    modifier = Modifier.fillMaxSize()
-                                                ) {
-                                                    SubmittedAnswerHistory(
-                                                        logs = state.logsByAttempt[selectedStudentAttempt.attemptId].orEmpty(),
-                                                        fields = state.fields,
-                                                        modifier = Modifier.fillMaxWidth()
-                                                    )
-                                                }
-                                            }
+                                            isMasterMode && selectedStudentAttempt != null -> Unit
                                             isMasterMode -> {
                                                 MasterCorrectSolutionFooter(state)
                                             }
@@ -285,7 +273,19 @@ fun PracticeScreen(
                                 }
                             },
                             foregroundContent = {
-                                if (!isMasterMode && answerInputMode == AnswerInputMode.WorksheetInline) {
+                                if (isMasterMode && selectedStudentAttempt != null) {
+                                    ProblemWorksheetFooterOverlay(
+                                        problem = state.currentProblem,
+                                        questionTextSizeSp = questionTextSizeSp,
+                                        modifier = Modifier.fillMaxSize()
+                                    ) {
+                                        SubmittedAnswerHistory(
+                                            logs = state.logsByAttempt[selectedStudentAttempt.attemptId].orEmpty(),
+                                            fields = state.fields,
+                                            modifier = Modifier.fillMaxWidth()
+                                        )
+                                    }
+                                } else if (!isMasterMode && answerInputMode == AnswerInputMode.WorksheetInline) {
                                     ProblemWorksheetFooterOverlay(
                                         problem = state.currentProblem,
                                         questionTextSizeSp = questionTextSizeSp,
@@ -451,7 +451,7 @@ private fun ProblemSolvingScreen(
                                 attempt = attempt,
                                 modifier = Modifier
                                     .align(Alignment.TopStart)
-                                    .padding(12.dp)
+                                    .padding(start = 12.dp, top = 42.dp)
                             )
                         }
                     }
@@ -1018,12 +1018,12 @@ private fun MasterAttemptInfoOverlay(
 ) {
     Card(
         modifier = modifier,
-        colors = CardDefaults.cardColors(containerColor = Color(0xEFFFFFFF))
+        colors = CardDefaults.cardColors(containerColor = Color(0x88FFFFFF))
     ) {
         Text(
             text = "${attempt.attemptNumber}회 · ${statusLabel(attempt.finalStatus)} · ${formatAttemptDate(attempt.submittedAt ?: attempt.startedAt)}",
             modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp),
-            color = statusColor(attempt.finalStatus),
+            color = statusColor(attempt.finalStatus).copy(alpha = 0.82f),
             fontWeight = FontWeight.SemiBold
         )
     }
