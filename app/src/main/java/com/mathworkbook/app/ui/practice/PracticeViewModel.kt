@@ -12,8 +12,11 @@ import com.mathworkbook.app.core.database.ChoiceEntity
 import com.mathworkbook.app.core.database.MathDao
 import com.mathworkbook.app.core.database.PracticeAttemptEntity
 import com.mathworkbook.app.core.database.ProblemEntity
+import com.mathworkbook.app.core.database.ReviewEntity
 import com.mathworkbook.app.core.database.WorkbookEntity
+import com.mathworkbook.app.core.domain.FinalStatus
 import com.mathworkbook.app.core.domain.KeyboardType
+import com.mathworkbook.app.core.domain.ManualReviewStatus
 import com.mathworkbook.app.core.domain.ProblemType
 import com.mathworkbook.app.core.files.FileStorage
 import com.mathworkbook.app.core.usecase.SubmitPracticeAnswerUseCase
@@ -264,6 +267,58 @@ class PracticeViewModel(
                     logsByAttempt = logs,
                     selectedStudentAttemptId = null,
                     feedback = "풀이 기록을 삭제했습니다."
+                )
+            }
+        }
+    }
+
+    fun reviewStudentAttempt(attemptId: String, isCorrect: Boolean, note: String) {
+        val attempt = _state.value.attemptsForProblem.firstOrNull { it.attemptId == attemptId } ?: return
+        viewModelScope.launch {
+            val now = System.currentTimeMillis()
+            val cleanedNote = note.trim()
+            val reviewStatus = if (isCorrect) ManualReviewStatus.GOOD else ManualReviewStatus.NEEDS_EXPLANATION
+            val updatedAttempt = attempt.copy(
+                finalStatus = if (isCorrect) FinalStatus.CORRECT else FinalStatus.WRONG,
+                isCorrect = isCorrect,
+                maxAttemptsReached = if (isCorrect) false else attempt.maxAttemptsReached,
+                submittedAt = attempt.submittedAt ?: now,
+                reviewerComment = cleanedNote.ifBlank { null },
+                manualReviewStatus = reviewStatus
+            )
+            dao.updatePracticeAttempt(updatedAttempt)
+            dao.upsertReview(
+                ReviewEntity(
+                    reviewId = "review-$attemptId",
+                    attemptId = attemptId,
+                    examSessionId = null,
+                    problemId = attempt.problemId,
+                    reviewerId = "master",
+                    processScore = reviewStatus,
+                    comment = cleanedNote,
+                    reviewedAt = now
+                )
+            )
+
+            val attemptsForProblem = dao.getPracticeAttemptsForProblem(studentId, attempt.problemId)
+            val logsByAttempt = attemptsForProblem.associate { refreshedAttempt ->
+                refreshedAttempt.attemptId to dao.getAttemptInputLogs(refreshedAttempt.attemptId)
+            }
+            val latestAttempt = attemptsForProblem.firstOrNull()
+            _state.update { current ->
+                current.copy(
+                    latestAttempt = latestAttempt,
+                    latestLogs = latestAttempt?.let { refreshedAttempt ->
+                        logsByAttempt[refreshedAttempt.attemptId].orEmpty()
+                    }.orEmpty(),
+                    attemptsForProblem = attemptsForProblem,
+                    logsByAttempt = logsByAttempt,
+                    selectedStudentAttemptId = attemptId,
+                    feedback = if (isCorrect) {
+                        "정답 처리와 채점 노트를 저장했습니다."
+                    } else {
+                        "오답 처리와 채점 노트를 저장했습니다."
+                    }
                 )
             }
         }

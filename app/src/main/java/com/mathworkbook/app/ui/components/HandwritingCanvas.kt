@@ -144,6 +144,12 @@ class HandwritingState {
         onChanged?.invoke()
     }
 
+    fun undoLastStroke() {
+        if (_strokes.isEmpty()) return
+        _strokes.removeAt(_strokes.lastIndex)
+        onChanged?.invoke()
+    }
+
     fun updateContentSize(widthPx: Float, heightPx: Float) {
         contentWidthPx = widthPx
         contentHeightPx = heightPx
@@ -431,6 +437,7 @@ fun HandwritingCanvas(
                     drawingEnabled = true
                 }
             )
+            UndoButton(onClick = state::undoLastStroke)
             toolbarTrailingContent()
         }
     }
@@ -519,6 +526,53 @@ private fun EraserButton(
                     strokeWidth = 1.2.dp.toPx()
                 )
             }
+        }
+    }
+}
+
+@Composable
+private fun UndoButton(
+    onClick: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .size(38.dp)
+            .semantics { contentDescription = "Undo" }
+            .clickable(onClick = onClick)
+            .background(Color.White, RoundedCornerShape(19.dp))
+            .border(1.dp, Color(0xFFE5E7EB), RoundedCornerShape(19.dp)),
+        contentAlignment = Alignment.Center
+    ) {
+        Canvas(modifier = Modifier.size(24.dp)) {
+            val color = Color(0xFF374151)
+            val stroke = 2.2.dp.toPx()
+            val center = Offset(size.width * 0.54f, size.height * 0.55f)
+            drawArc(
+                color = color,
+                startAngle = 40f,
+                sweepAngle = 270f,
+                useCenter = false,
+                topLeft = Offset(size.width * 0.22f, size.height * 0.22f),
+                size = Size(size.width * 0.56f, size.height * 0.56f),
+                style = androidx.compose.ui.graphics.drawscope.Stroke(
+                    width = stroke,
+                    cap = androidx.compose.ui.graphics.StrokeCap.Round
+                )
+            )
+            drawLine(
+                color = color,
+                start = Offset(center.x - 6.dp.toPx(), center.y - 7.dp.toPx()),
+                end = Offset(center.x - 11.dp.toPx(), center.y - 1.dp.toPx()),
+                strokeWidth = stroke,
+                cap = androidx.compose.ui.graphics.StrokeCap.Round
+            )
+            drawLine(
+                color = color,
+                start = Offset(center.x - 6.dp.toPx(), center.y - 7.dp.toPx()),
+                end = Offset(center.x + 1.dp.toPx(), center.y - 5.dp.toPx()),
+                strokeWidth = stroke,
+                cap = androidx.compose.ui.graphics.StrokeCap.Round
+            )
         }
     }
 }

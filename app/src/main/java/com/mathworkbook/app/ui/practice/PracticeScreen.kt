@@ -186,6 +186,7 @@ fun PracticeScreen(
                     },
                     handwriting = {
                         val worksheetContentHeight = estimateWorksheetContentHeightDp(state.currentProblem).dp
+                        val selectedStudentAttempt = state.selectedStudentAttempt()
                         HandwritingCanvas(
                             state = handwritingState,
                             modifier = Modifier.fillMaxSize(),
@@ -226,10 +227,30 @@ fun PracticeScreen(
                                     imageTransformOverride = if (isMasterMode && imageAdjustmentMode != WorksheetImageAdjustmentMode.None) imageTransformDraft else null,
                                     onImageTransformChanged = { imageTransformDraft = it }
                                 ) {
-                                    if (isMasterMode) {
-                                        MasterCorrectSolutionFooter(state)
-                                    } else if (answerInputMode == AnswerInputMode.FixedBottomCustomKeypad) {
-                                        StudentAnswerStamp(state)
+                                    when {
+                                        isMasterMode && selectedStudentAttempt != null -> {
+                                            SolutionVectorOverlay(
+                                                path = selectedStudentAttempt.solutionImagePath,
+                                                modifier = Modifier.fillMaxSize()
+                                            )
+                                            ProblemWorksheetFooterOverlay(
+                                                problem = state.currentProblem,
+                                                questionTextSizeSp = questionTextSizeSp,
+                                                modifier = Modifier.fillMaxSize()
+                                            ) {
+                                                SubmittedAnswerHistory(
+                                                    logs = state.logsByAttempt[selectedStudentAttempt.attemptId].orEmpty(),
+                                                    fields = state.fields,
+                                                    modifier = Modifier.fillMaxWidth()
+                                                )
+                                            }
+                                        }
+                                        isMasterMode -> {
+                                            MasterCorrectSolutionFooter(state)
+                                        }
+                                        answerInputMode == AnswerInputMode.FixedBottomCustomKeypad -> {
+                                            StudentAnswerStamp(state)
+                                        }
                                     }
                                 }
                             },
@@ -405,16 +426,7 @@ private fun ProblemSolvingScreen(
                             .fillMaxWidth()
                             .weight(1f)
                     ) {
-                    if (isMasterMode && selectedStudentAttempt != null) {
-                        StudentAttemptProblemView(
-                            state = state,
-                            questionTextSizeSp = questionTextSizeSp,
-                            attempt = selectedStudentAttempt,
-                            modifier = Modifier.fillMaxSize()
-                        )
-                    } else {
-                        handwriting()
-                    }
+                    handwriting()
                     if (state.showCorrectMark && !isMasterMode) {
                         CorrectCircleOverlay()
                     }
@@ -435,30 +447,6 @@ private fun ProblemSolvingScreen(
                                     .padding(12.dp)
                             )
                         }
-                        if (selectedStudentAttempt != null) {
-                            ToolbarNavButton(
-                                text = "이전",
-                                direction = NavDirection.Previous,
-                                modifier = Modifier
-                                    .align(Alignment.TopStart)
-                                    .padding(top = 8.dp, start = 18.dp),
-                                onClick = {
-                                    focusManager.clearFocus(force = true)
-                                    viewModel.movePrevious()
-                                }
-                            )
-                            ToolbarNavButton(
-                                text = "다음",
-                                direction = NavDirection.Next,
-                                modifier = Modifier
-                                    .align(Alignment.TopEnd)
-                                    .padding(top = 8.dp, end = 18.dp),
-                                onClick = {
-                                    focusManager.clearFocus(force = true)
-                                    viewModel.moveNext(clearFeedback = true)
-                                }
-                            )
-                        }
                     }
                 }
                 if (isMasterMode) {
@@ -466,6 +454,12 @@ private fun ProblemSolvingScreen(
                         MasterAnswerArea(
                             state = state,
                             viewModel = viewModel,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    } else {
+                        MasterAttemptReviewPanel(
+                            attempt = selectedStudentAttempt,
+                            onReview = viewModel::reviewStudentAttempt,
                             modifier = Modifier.fillMaxWidth()
                         )
                     }
@@ -501,6 +495,13 @@ private fun ProblemSolvingScreen(
                                 contentPadding = PaddingValues(horizontal = 14.dp, vertical = 0.dp)
                             ) {
                                 Text("풀이 삭제")
+                            }
+                            Button(
+                                onClick = { viewModel.saveMasterNote(solutionJson()) },
+                                modifier = Modifier.height(38.dp),
+                                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 0.dp)
+                            ) {
+                                Text("노트 저장")
                             }
                         } else {
                             OutlinedButton(
@@ -812,6 +813,67 @@ private fun MasterAnswerArea(
             }
         }
 
+    }
+}
+
+@Composable
+private fun MasterAttemptReviewPanel(
+    attempt: PracticeAttemptEntity,
+    onReview: (attemptId: String, isCorrect: Boolean, note: String) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var reviewNote by remember(attempt.attemptId, attempt.reviewerComment) {
+        mutableStateOf(attempt.reviewerComment.orEmpty())
+    }
+    Card(
+        modifier = modifier,
+        colors = CardDefaults.cardColors(containerColor = Color(0xFFFFFBEB)),
+        shape = RoundedCornerShape(8.dp)
+    ) {
+        Column(
+            modifier = Modifier.padding(10.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("마스터 채점", fontWeight = FontWeight.SemiBold)
+                Text(
+                    text = statusLabel(attempt.finalStatus),
+                    color = statusColor(attempt.finalStatus),
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
+            OutlinedTextField(
+                value = reviewNote,
+                onValueChange = { reviewNote = it },
+                label = { Text("채점 노트") },
+                minLines = 2,
+                maxLines = 4,
+                modifier = Modifier.fillMaxWidth()
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End)
+            ) {
+                OutlinedButton(
+                    onClick = { onReview(attempt.attemptId, false, reviewNote) },
+                    modifier = Modifier.height(36.dp),
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp)
+                ) {
+                    Text("오답 처리")
+                }
+                Button(
+                    onClick = { onReview(attempt.attemptId, true, reviewNote) },
+                    modifier = Modifier.height(36.dp),
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp)
+                ) {
+                    Text("정답 처리")
+                }
+            }
+        }
     }
 }
 
