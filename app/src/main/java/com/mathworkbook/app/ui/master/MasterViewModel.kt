@@ -137,12 +137,13 @@ class MasterViewModel(
         }
     }
 
-    fun importWorkbookZip(uri: Uri) {
+    fun importWorkbookZip(uri: Uri, onImported: () -> Unit = {}) {
         viewModelScope.launch {
             runCatching {
                 workbookImportService.importZip(uri)
             }.onSuccess { workbookId ->
                 refreshCatalog()
+                onImported()
                 _state.update { it.copy(message = "문제집을 가져왔습니다: $workbookId") }
             }.onFailure { error ->
                 _state.update { it.copy(message = "가져오기 실패: ${error.message}") }

@@ -9,11 +9,13 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -94,6 +96,8 @@ fun PracticeScreen(
     initialWorkbookId: String? = null,
     initialChapterId: String? = null,
     initialProblemId: String? = null,
+    initialAttemptId: String? = null,
+    onProblemLocationChanged: (workbookId: String, chapterId: String, problemId: String) -> Unit = { _, _, _ -> },
     onInitialChapterHandled: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
@@ -103,18 +107,24 @@ fun PracticeScreen(
     var imageAdjustmentMode by remember { mutableStateOf(WorksheetImageAdjustmentMode.None) }
     var imageTransformDraft by remember { mutableStateOf(WorksheetImageTransform()) }
 
-    LaunchedEffect(isMasterMode, initialWorkbookId, initialChapterId, initialProblemId) {
+    LaunchedEffect(isMasterMode, initialWorkbookId, initialChapterId, initialProblemId, initialAttemptId) {
         viewModel.setMasterMode(
             enabled = isMasterMode,
             reloadCurrent = initialWorkbookId == null || initialChapterId == null
         )
         if (initialWorkbookId != null && initialChapterId != null) {
             if (initialProblemId != null) {
-                viewModel.openProblem(initialWorkbookId, initialChapterId, initialProblemId)
+                viewModel.openProblem(initialWorkbookId, initialChapterId, initialProblemId, initialAttemptId)
             } else {
                 viewModel.openChapter(initialWorkbookId, initialChapterId)
             }
             onInitialChapterHandled()
+        }
+    }
+
+    LaunchedEffect(state.currentProblem?.problemId) {
+        state.currentProblem?.let { problem ->
+            onProblemLocationChanged(problem.workbookId, problem.chapterId, problem.problemId)
         }
     }
 
@@ -151,7 +161,6 @@ fun PracticeScreen(
             when {
                 state.selectedWorkbook == null -> WorkbookSelectionScreen(
                     workbooks = state.workbooks,
-                    onRefresh = viewModel::refreshWorkbooks,
                     onSelectWorkbook = viewModel::selectWorkbook
                 )
                 state.selectedChapter == null -> ChapterSelectionScreen(
@@ -284,7 +293,6 @@ fun PracticeScreen(
 @Composable
 private fun WorkbookSelectionScreen(
     workbooks: List<WorkbookEntity>,
-    onRefresh: () -> Unit,
     onSelectWorkbook: (WorkbookEntity) -> Unit
 ) {
     LazyColumn(
@@ -294,13 +302,15 @@ private fun WorkbookSelectionScreen(
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         item {
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Spacer(Modifier.width(48.dp))
                 Column(modifier = Modifier.weight(1f)) {
                     Text("문제집 선택", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
                     Text("풀 문제집을 고르면 세부 진도가 이어서 표시됩니다.", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-                OutlinedButton(onClick = onRefresh) {
-                    Text("새로고침")
                 }
             }
         }
@@ -385,10 +395,12 @@ private fun ProblemSolvingScreen(
             .padding(14.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-            OutlinedButton(onClick = viewModel::backToChapters) {
-                Text("진도")
-            }
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Spacer(Modifier.width(48.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = state.selectedWorkbook?.title.orEmpty(),

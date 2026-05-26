@@ -124,6 +124,17 @@ class DashboardViewModel(
         }
     }
 
+    fun focusLocation(workbookId: String?, chapterId: String?) {
+        if (workbookId.isNullOrBlank()) return
+        _state.update {
+            it.copy(
+                selectedWorkbookId = workbookId,
+                selectedChapterId = chapterId
+            )
+        }
+        rebuild()
+    }
+
     fun deleteWorkbook(workbook: WorkbookEntity) {
         viewModelScope.launch {
             runCatching {

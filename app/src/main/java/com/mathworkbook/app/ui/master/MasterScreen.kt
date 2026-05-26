@@ -66,6 +66,114 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
+enum class MasterToolAction {
+    ExamCreate,
+    Settings,
+    Import,
+    Logs
+}
+
+@Composable
+fun MasterToolLayer(
+    viewModel: MasterViewModel,
+    activeTool: MasterToolAction?,
+    questionTextSizeSp: Int = 24,
+    onDismiss: () -> Unit = {},
+    onChangeQuestionTextSize: (Int) -> Unit = {},
+    onWorkbookImported: () -> Unit = {},
+    onOpenAttempt: (PracticeAttemptEntity) -> Unit = {},
+    onStartExamMode: () -> Unit = {}
+) {
+    val state by viewModel.state.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+    val zipDocumentContract = remember { ZipFilePickerContract(Intent.ACTION_OPEN_DOCUMENT) }
+    val zipContentContract = remember { ZipFilePickerContract(Intent.ACTION_GET_CONTENT) }
+    val zipDocumentPicker = rememberLauncherForActivityResult(
+        contract = zipDocumentContract,
+        onResult = { uri -> uri?.let { viewModel.importWorkbookZip(it, onWorkbookImported) } }
+    )
+    val zipContentPicker = rememberLauncherForActivityResult(
+        contract = zipContentContract,
+        onResult = { uri -> uri?.let { viewModel.importWorkbookZip(it, onWorkbookImported) } }
+    )
+    val zipMimeTypes = remember {
+        listOf(
+            "application/zip",
+            "application/x-zip-compressed",
+            "application/octet-stream"
+        )
+    }
+    val attemptGroups = remember(state.attempts, state.problems) {
+        state.attempts
+            .groupBy { it.problemId }
+            .map { (problemId, attempts) ->
+                ProblemAttemptGroup(
+                    problemId = problemId,
+                    problem = state.problems.firstOrNull { it.problemId == problemId },
+                    attempts = attempts.sortedByDescending { it.submittedAt ?: it.startedAt }
+                )
+            }
+            .sortedByDescending { group -> group.attempts.firstOrNull()?.let { it.submittedAt ?: it.startedAt } ?: 0L }
+    }
+
+    when (activeTool) {
+        MasterToolAction.Settings -> SettingsDialog(
+            state = state,
+            questionTextSizeSp = questionTextSizeSp,
+            onDismiss = onDismiss,
+            onChangeMaxTryCount = viewModel::updateDefaultMaxTryCount,
+            onChangeQuestionTextSize = onChangeQuestionTextSize
+        )
+        MasterToolAction.Import -> ImportDialog(
+            onDismiss = onDismiss,
+            onPickZip = {
+                onDismiss()
+                launchZipPickerIfAvailable(
+                    context = context,
+                    action = Intent.ACTION_OPEN_DOCUMENT,
+                    mimeTypes = zipMimeTypes,
+                    launcher = { request -> zipDocumentPicker.launch(request) },
+                    onUnavailable = {
+                        launchZipPickerIfAvailable(
+                            context = context,
+                            action = Intent.ACTION_GET_CONTENT,
+                            mimeTypes = zipMimeTypes,
+                            launcher = { request -> zipContentPicker.launch(request) },
+                            onUnavailable = { viewModel.showMessage(ZIP_PICKER_UNAVAILABLE_MESSAGE) }
+                        )
+                    }
+                )
+            }
+        )
+        MasterToolAction.ExamCreate -> ExamCreateDialog(
+            state = state,
+            onDismiss = onDismiss,
+            onCreate = { workbookId, chapterId, count, randomOrder, wrongFirst ->
+                viewModel.createExam(
+                    workbookId = workbookId,
+                    chapterId = chapterId,
+                    requestedProblemCount = count,
+                    randomOrder = randomOrder,
+                    wrongFirst = wrongFirst,
+                    onCreated = {
+                        onDismiss()
+                        onStartExamMode()
+                    }
+                )
+            }
+        )
+        MasterToolAction.Logs -> MasterLogDialog(
+            attemptGroups = attemptGroups,
+            onDismiss = onDismiss,
+            onOpenAttempt = {
+                onDismiss()
+                onOpenAttempt(it)
+            }
+        )
+        null -> Unit
+    }
+}
+
 @Composable
 fun MasterScreen(
     viewModel: MasterViewModel,
@@ -573,6 +681,75 @@ private fun ProblemTeacherMeta(problem: ProblemEntity?) {
             }
         }
     }
+}
+
+@Composable
+private fun MasterLogDialog(
+    attemptGroups: List<ProblemAttemptGroup>,
+    onDismiss: () -> Unit,
+    onOpenAttempt: (PracticeAttemptEntity) -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("풀이 로그") },
+        text = {
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(520.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                if (attemptGroups.isEmpty()) {
+                    item {
+                        Text("아직 풀이 기록이 없습니다.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+                items(attemptGroups) { group ->
+                    val latestAttempt = group.attempts.first()
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onOpenAttempt(latestAttempt) },
+                        colors = CardDefaults.cardColors(containerColor = Color.White)
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(12.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = group.problem?.questionText?.take(36) ?: group.problemId,
+                                    modifier = Modifier.weight(1f),
+                                    maxLines = 1,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                                Text("${group.attempts.size}회", fontWeight = FontWeight.Bold)
+                                Text(
+                                    statusLabel(latestAttempt.finalStatus),
+                                    color = statusColor(latestAttempt.finalStatus),
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                            Text(
+                                text = "최근 ${formatTimestamp(latestAttempt.submittedAt ?: latestAttempt.startedAt)}",
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                style = MaterialTheme.typography.labelMedium
+                            )
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Button(onClick = onDismiss) {
+                Text("닫기")
+            }
+        }
+    )
 }
 
 @Composable

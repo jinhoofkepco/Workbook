@@ -148,7 +148,7 @@ class PracticeViewModel(
         }
     }
 
-    fun openProblem(workbookId: String, chapterId: String, problemId: String) {
+    fun openProblem(workbookId: String, chapterId: String, problemId: String, attemptId: String? = null) {
         viewModelScope.launch {
             val workbook = dao.getWorkbooksOnce().firstOrNull { it.workbookId == workbookId } ?: return@launch
             val chapters = dao.getChaptersOnce(workbookId)
@@ -164,7 +164,7 @@ class PracticeViewModel(
                     showCorrectMark = false
                 )
             }
-            loadChapter(chapter, initialProblemId = problemId)
+            loadChapter(chapter, initialProblemId = problemId, initialAttemptId = attemptId)
         }
     }
 
@@ -575,11 +575,22 @@ class PracticeViewModel(
     }
 
     fun movePrevious() {
-        val previous = (_state.value.currentIndex - 1).coerceAtLeast(0)
-        viewModelScope.launch { loadProblem(previous, clearFeedback = true) }
+        viewModelScope.launch {
+            val current = _state.value
+            val previous = current.currentIndex - 1
+            if (previous >= 0) {
+                loadProblem(previous, clearFeedback = true)
+            } else {
+                moveToPreviousChapter()
+            }
+        }
     }
 
-    private suspend fun loadChapter(chapter: ChapterEntity, initialProblemId: String? = null) {
+    private suspend fun loadChapter(
+        chapter: ChapterEntity,
+        initialProblemId: String? = null,
+        initialAttemptId: String? = null
+    ) {
         val problems = dao.getProblemsInChapter(chapter.chapterId)
         val initialIndex = initialProblemId
             ?.let { problemId -> problems.indexOfFirst { it.problemId == problemId } }
@@ -596,7 +607,7 @@ class PracticeViewModel(
             )
         }
         if (problems.isNotEmpty()) {
-            loadProblem(initialIndex, clearFeedback = true)
+            loadProblem(initialIndex, clearFeedback = true, selectedAttemptId = initialAttemptId)
         } else {
             _state.update { it.copy(feedback = "이 단원에는 아직 문제가 없습니다.") }
         }
@@ -622,7 +633,26 @@ class PracticeViewModel(
         }
     }
 
-    private suspend fun loadProblem(index: Int, clearFeedback: Boolean) {
+    private suspend fun moveToPreviousChapter() {
+        val current = _state.value
+        val selectedChapter = current.selectedChapter ?: return
+        val orderedChapters = current.chapters.sortedBy { it.orderIndex }
+        val currentChapterIndex = orderedChapters.indexOfFirst { it.chapterId == selectedChapter.chapterId }
+        val previousChapter = orderedChapters.getOrNull(currentChapterIndex - 1)
+        if (previousChapter != null) {
+            val previousProblems = dao.getProblemsInChapter(previousChapter.chapterId)
+            loadChapter(previousChapter, initialProblemId = previousProblems.lastOrNull()?.problemId)
+        } else {
+            _state.update {
+                it.copy(
+                    feedback = "첫 소단원의 첫 문제입니다.",
+                    showCorrectMark = false
+                )
+            }
+        }
+    }
+
+    private suspend fun loadProblem(index: Int, clearFeedback: Boolean, selectedAttemptId: String? = null) {
         val problems = _state.value.problems
         val problem = problems.getOrNull(index) ?: return
         val fields = dao.getAnswerFields(problem.problemId)
@@ -653,7 +683,9 @@ class PracticeViewModel(
                 visibleAnswerLogs = emptyList(),
                 attemptsForProblem = attemptsForProblem,
                 logsByAttempt = logsByAttempt,
-                selectedStudentAttemptId = null,
+                selectedStudentAttemptId = selectedAttemptId?.takeIf { attemptId ->
+                    attemptsForProblem.any { it.attemptId == attemptId }
+                },
                 masterNoteVectorJson = if (masterMode) fileStorage.readMasterNoteVectorJson(problem.problemId) else null,
                 showCorrectAnswer = false,
                 inputByField = if (masterMode) masterInputs else blankInputs(fields),
