@@ -358,21 +358,49 @@ private fun BottomMenu(
                 }
                 RoundToolButton(if (toolsExpanded) "닫기" else "도구", selected = toolsExpanded, onClick = onToggleTools)
             }
-            RoundToolButton("마", selected = isMasterMode, onClick = onToggleMasterMode)
+            RoundToolButton(
+                label = "마",
+                selected = isMasterMode,
+                badgeText = if (isMasterMode) "on" else null,
+                onClick = onToggleMasterMode
+            )
         }
     }
 }
 
 @Composable
-private fun RoundToolButton(label: String, selected: Boolean = false, onClick: () -> Unit) {
-    OutlinedButton(
-        onClick = onClick,
-        modifier = Modifier.size(48.dp),
-        shape = CircleShape,
-        border = BorderStroke(1.5.dp, if (selected) MaterialTheme.colorScheme.primary else Color(0xFF7C7585)),
-        contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp)
-    ) {
-        Text(label, style = MaterialTheme.typography.labelSmall, maxLines = 1)
+private fun RoundToolButton(
+    label: String,
+    selected: Boolean = false,
+    badgeText: String? = null,
+    onClick: () -> Unit
+) {
+    Box(modifier = Modifier.size(48.dp)) {
+        OutlinedButton(
+            onClick = onClick,
+            modifier = Modifier.size(48.dp),
+            shape = CircleShape,
+            border = BorderStroke(1.5.dp, if (selected) MaterialTheme.colorScheme.primary else Color(0xFF7C7585)),
+            contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp)
+        ) {
+            Text(label, style = MaterialTheme.typography.labelSmall, maxLines = 1)
+        }
+        badgeText?.let {
+            Surface(
+                modifier = Modifier.align(Alignment.TopEnd),
+                shape = CircleShape,
+                color = Color(0xFF2563EB)
+            ) {
+                Text(
+                    text = it,
+                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp),
+                    color = Color.White,
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1
+                )
+            }
+        }
     }
 }
 
