@@ -1,7 +1,6 @@
 package com.mathworkbook.app.ui
 
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,7 +12,6 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -108,6 +106,24 @@ fun MathWorkbookApp(container: AppContainer) {
         toolsExpanded = false
     }
 
+    fun toggleMasterMode() {
+        if (isMasterMode) {
+            isMasterMode = false
+            toolsExpanded = false
+            mainMenuExpanded = false
+        } else if (masterUnlockedThisRun) {
+            isMasterMode = true
+            mainMenuExpanded = false
+        } else {
+            pin = ""
+            pinError = null
+            keepMasterLogin = false
+            showMasterLogin = true
+            mainMenuExpanded = false
+            toolsExpanded = false
+        }
+    }
+
     MaterialTheme {
         val masterViewModel: MasterViewModel = viewModel(factory = MasterViewModelFactory(container))
         Box(modifier = Modifier.fillMaxSize()) {
@@ -198,36 +214,26 @@ fun MathWorkbookApp(container: AppContainer) {
                             mainMenuExpanded = false
                             toolsExpanded = false
                         },
-                        onToggleMainMenu = { mainMenuExpanded = !mainMenuExpanded },
-                        onToggleTools = { toolsExpanded = !toolsExpanded },
+                        onToggleMainMenu = {
+                            if (mainMenuExpanded || toolsExpanded) {
+                                mainMenuExpanded = false
+                                toolsExpanded = false
+                            } else {
+                                mainMenuExpanded = true
+                            }
+                        },
+                        onToggleTools = {
+                            toolsExpanded = !toolsExpanded
+                            mainMenuExpanded = false
+                        },
                         onSelectTool = { tool ->
                             activeMasterTool = tool
                             toolsExpanded = false
-                        }
+                        },
+                        onToggleMasterMode = ::toggleMasterMode
                     )
                 }
             }
-
-            MasterToggleButton(
-                isMasterMode = isMasterMode,
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .statusBarsPadding()
-                    .padding(top = 8.dp, end = 8.dp),
-                onClick = {
-                    if (isMasterMode) {
-                        isMasterMode = false
-                        toolsExpanded = false
-                    } else if (masterUnlockedThisRun) {
-                        isMasterMode = true
-                    } else {
-                        pin = ""
-                        pinError = null
-                        keepMasterLogin = false
-                        showMasterLogin = true
-                    }
-                }
-            )
 
             MasterToolLayer(
                 viewModel = masterViewModel,
@@ -302,37 +308,6 @@ private const val MIN_PROBLEM_TEXT_SIZE_SP = 18
 private const val MAX_PROBLEM_TEXT_SIZE_SP = 36
 
 @Composable
-private fun MasterToggleButton(
-    isMasterMode: Boolean,
-    modifier: Modifier = Modifier,
-    onClick: () -> Unit
-) {
-    Box(modifier = modifier) {
-        OutlinedButton(
-            onClick = onClick,
-            modifier = Modifier.size(44.dp),
-            shape = CircleShape,
-            border = BorderStroke(1.5.dp, if (isMasterMode) Color(0xFF2563EB) else Color(0xFFE5E7EB)),
-            contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp)
-        ) {
-            Text("마", fontWeight = FontWeight.Bold)
-        }
-        if (isMasterMode) {
-            Text(
-                text = "on",
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .border(1.dp, Color(0xFF2563EB), CircleShape)
-                    .padding(horizontal = 3.dp),
-                color = Color(0xFF2563EB),
-                style = MaterialTheme.typography.labelSmall,
-                fontWeight = FontWeight.Bold
-            )
-        }
-    }
-}
-
-@Composable
 private fun BottomMenu(
     selectedTab: RootTab,
     mainMenuExpanded: Boolean,
@@ -341,7 +316,8 @@ private fun BottomMenu(
     onSelectTab: (RootTab) -> Unit,
     onToggleMainMenu: () -> Unit,
     onToggleTools: () -> Unit,
-    onSelectTool: (MasterToolAction) -> Unit
+    onSelectTool: (MasterToolAction) -> Unit,
+    onToggleMasterMode: () -> Unit
 ) {
     Surface(
         tonalElevation = 3.dp,
@@ -382,6 +358,7 @@ private fun BottomMenu(
                 }
                 RoundToolButton(if (toolsExpanded) "닫기" else "도구", selected = toolsExpanded, onClick = onToggleTools)
             }
+            RoundToolButton("마", selected = isMasterMode, onClick = onToggleMasterMode)
         }
     }
 }

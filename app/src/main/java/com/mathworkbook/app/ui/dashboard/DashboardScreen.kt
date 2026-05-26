@@ -3,15 +3,19 @@ package com.mathworkbook.app.ui.dashboard
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -36,6 +40,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -198,22 +204,15 @@ private fun SelectedWorkbookHeader(
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Card(
+        WorkbookCoverView(
+            summary = summary,
+            compact = true,
+            showStats = false,
             modifier = Modifier
                 .weight(0.22f)
                 .fillMaxSize()
-                .clickable(onClick = onClickBook),
-            colors = CardDefaults.cardColors(containerColor = Color.White),
-            border = BorderStroke(1.dp, Color(0xFFE5E7EB))
-        ) {
-            Column(
-                modifier = Modifier.padding(10.dp),
-                verticalArrangement = Arrangement.SpaceBetween
-            ) {
-                Text("책", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelLarge)
-                Text(summary.workbook.title, maxLines = 2, fontWeight = FontWeight.Bold)
-            }
-        }
+                .clickable(onClick = onClickBook)
+        )
         Card(
             modifier = Modifier
                 .weight(0.78f)
@@ -241,23 +240,99 @@ private fun WorkbookCard(
     onClick: () -> Unit,
     onLongClick: (() -> Unit)? = null
 ) {
-    Card(
+    WorkbookCoverView(
+        summary = summary,
+        compact = false,
+        showStats = isMasterMode,
         modifier = Modifier
             .fillMaxWidth()
+            .height(if (isMasterMode) 230.dp else 200.dp)
             .combinedClickable(
                 onClick = onClick,
                 onLongClick = onLongClick
-            ),
-        colors = CardDefaults.cardColors(containerColor = Color.White)
+            )
+    )
+}
+
+@Composable
+private fun WorkbookCoverView(
+    summary: WorkbookProgressSummary,
+    compact: Boolean,
+    showStats: Boolean,
+    modifier: Modifier = Modifier
+) {
+    val coverShape = RoundedCornerShape(8.dp)
+    Card(
+        modifier = modifier,
+        colors = CardDefaults.cardColors(containerColor = Color(0xFFFDF7EC)),
+        border = BorderStroke(1.dp, Color(0xFFD8C6A3)),
+        shape = coverShape
     ) {
-        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Text("책", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelLarge)
-            Text(summary.workbook.title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, maxLines = 1)
-            Text(summary.workbook.description.ifBlank { "문제 ${summary.totalProblems}개" }, maxLines = 2)
-            ProgressBar(summary.progressPercent)
-            Text("${summary.solvedProblems}/${summary.totalProblems} 완료 · ${summary.progressPercent}%")
-            if (isMasterMode) {
-                CompactStats(summary.correctProblems, summary.wrongProblems, summary.attemptCount)
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color(0xFFFDF7EC))
+                .clip(coverShape)
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxHeight()
+                    .width(if (compact) 18.dp else 24.dp)
+                    .background(Color(0xFF6E7FA7))
+                    .border(1.dp, Color(0xFF4D5D85))
+            )
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(if (compact) 6.dp else 10.dp)
+                    .background(Color(0xFFEAF1FF), RoundedCornerShape(999.dp))
+                    .padding(horizontal = if (compact) 6.dp else 8.dp, vertical = 3.dp)
+            ) {
+                Text(
+                    "${summary.progressPercent}%",
+                    color = Color(0xFF1D4ED8),
+                    style = if (compact) MaterialTheme.typography.labelSmall else MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(
+                        start = if (compact) 28.dp else 38.dp,
+                        top = if (compact) 10.dp else 18.dp,
+                        end = if (compact) 8.dp else 14.dp,
+                        bottom = if (compact) 10.dp else 14.dp
+                    ),
+                verticalArrangement = Arrangement.spacedBy(if (compact) 5.dp else 9.dp)
+            ) {
+                Text(
+                    "문제집",
+                    color = Color(0xFF6E7FA7),
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    summary.workbook.title,
+                    style = if (compact) MaterialTheme.typography.titleSmall else MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = if (compact) 2 else 1
+                )
+                Text(
+                    summary.workbook.description.ifBlank { "문제 ${summary.totalProblems}개" },
+                    color = Color(0xFF6B7280),
+                    maxLines = if (compact) 1 else 2,
+                    style = if (compact) MaterialTheme.typography.labelSmall else MaterialTheme.typography.bodyMedium
+                )
+                ProgressBar(summary.progressPercent)
+                Text(
+                    "${summary.solvedProblems}/${summary.totalProblems} 완료 · ${summary.progressPercent}%",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = Color(0xFF374151)
+                )
+                if (showStats) {
+                    CompactStats(summary.correctProblems, summary.wrongProblems, summary.attemptCount)
+                }
             }
         }
     }

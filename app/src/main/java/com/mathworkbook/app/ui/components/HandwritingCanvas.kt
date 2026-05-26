@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -28,8 +29,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -408,6 +407,7 @@ fun HandwritingCanvas(
             modifier = Modifier
                 .align(Alignment.TopCenter)
                 .padding(top = 2.dp)
+                .fillMaxWidth(0.30f)
                 .zIndex(4f),
             contentAlignment = Alignment.Center
         ) {
@@ -430,28 +430,28 @@ fun HandwritingCanvas(
                 ToolCircleButton(
                     tool = visibleDrawingTool,
                     selected = drawingEnabled && currentTool.kind != ToolKind.Eraser,
-                    onClick = { toolMenuExpanded = true }
+                    onClick = { toolMenuExpanded = !toolMenuExpanded }
                 )
-                DropdownMenu(
-                    expanded = toolMenuExpanded,
-                    onDismissRequest = { toolMenuExpanded = false }
-                ) {
-                    DrawingTools.forEach { tool ->
-                        DropdownMenuItem(
-                            text = { Text(tool.label) },
-                            onClick = {
-                                currentTool = tool
-                                drawingEnabled = true
-                                toolMenuExpanded = false
-                            },
-                            leadingIcon = {
-                                Box(
-                                    modifier = Modifier
-                                        .size(18.dp)
-                                        .background(tool.color, CircleShape)
-                                )
-                            }
-                        )
+                if (toolMenuExpanded) {
+                    Column(
+                        modifier = Modifier
+                            .align(Alignment.TopCenter)
+                            .padding(top = 36.dp)
+                            .zIndex(6f),
+                        verticalArrangement = Arrangement.spacedBy(7.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        DrawingTools.forEach { tool ->
+                            ToolCircleButton(
+                                tool = tool,
+                                selected = currentTool.id == tool.id && currentTool.kind != ToolKind.Eraser,
+                                onClick = {
+                                    currentTool = tool
+                                    drawingEnabled = true
+                                    toolMenuExpanded = false
+                                }
+                            )
+                        }
                     }
                 }
             }

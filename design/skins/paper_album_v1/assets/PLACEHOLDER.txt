@@ -1,0 +1,1 @@
+Generated PNG assets go here. Keep file names exactly as defined in ../skin.json.

@@ -7,8 +7,10 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -16,7 +18,6 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -54,6 +55,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.input.KeyboardType as ImeKeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mathworkbook.app.core.database.AnswerFieldEntity
 import com.mathworkbook.app.core.database.AttemptInputLogEntity
@@ -214,8 +216,11 @@ fun PracticeScreen(
                                 )
                                 OutlinedButton(
                                     onClick = viewModel::showHint,
-                                    modifier = Modifier.height(30.dp),
-                                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp)
+                                    modifier = Modifier
+                                        .size(30.dp)
+                                        .defaultMinSize(minWidth = 0.dp, minHeight = 0.dp),
+                                    shape = CircleShape,
+                                    contentPadding = PaddingValues(0.dp)
                                 ) {
                                     Text("H", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
                                 }
@@ -538,19 +543,19 @@ private fun WorksheetLocationLabel(
     position: String
 ) {
     Card(
-        modifier = Modifier.widthIn(max = 520.dp),
+        modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = Color(0xEFFFFFFF)),
-        shape = RoundedCornerShape(14.dp)
+        shape = RoundedCornerShape(10.dp)
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
                 text = workbookTitle.ifBlank { "문제집" },
                 modifier = Modifier.weight(1f),
-                style = MaterialTheme.typography.labelMedium,
+                style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
@@ -558,7 +563,7 @@ private fun WorksheetLocationLabel(
             Text(
                 text = "${chapterTitle.ifBlank { "단원" }} · $position",
                 modifier = Modifier.weight(1f),
-                style = MaterialTheme.typography.labelSmall,
+                style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
@@ -576,16 +581,18 @@ private fun ToolbarNavButton(
 ) {
     OutlinedButton(
         onClick = onClick,
-        modifier = modifier.height(30.dp),
+        modifier = modifier
+            .size(width = 30.dp, height = 28.dp)
+            .defaultMinSize(minWidth = 0.dp, minHeight = 0.dp),
         shape = if (direction == NavDirection.Previous) PreviousNavShape else NextNavShape,
         border = BorderStroke(1.4.dp, Color(0xFF2563EB)),
         colors = ButtonDefaults.outlinedButtonColors(
             containerColor = Color(0xF2FFFFFF),
             contentColor = Color(0xFF2563EB)
         ),
-        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp)
+        contentPadding = PaddingValues(0.dp)
     ) {
-        Text(text, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+        Text(text, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
     }
 }
 
@@ -779,23 +786,44 @@ private fun MasterBottomActionBar(
             modifier = Modifier
                 .horizontalScroll(scrollState)
                 .padding(horizontal = 6.dp, vertical = 4.dp),
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            MasterActionButton("정답저장", primary = true, enabled = selectedStudentAttempt == null, onClick = onSaveCorrectAnswers)
-            MasterActionButton("그림조정", enabled = selectedStudentAttempt == null, onClick = onStartImageAdjust)
-            MasterActionButton("테두리조정", enabled = selectedStudentAttempt == null, onClick = onStartFrameAdjust)
-            MasterActionButton(
-                "조정확정",
-                enabled = selectedStudentAttempt == null && imageAdjustmentMode != WorksheetImageAdjustmentMode.None,
-                onClick = onConfirmImageAdjust
-            )
-            MasterActionButton("사진합쳐저장", enabled = selectedStudentAttempt == null, onClick = onMergeIntoImage)
-            MasterActionButton("노트저장", primary = true, onClick = onSaveNote)
+            MasterActionGroup {
+                MasterActionButton("정답저장", primary = true, enabled = selectedStudentAttempt == null, onClick = onSaveCorrectAnswers)
+                MasterActionButton("노트저장", primary = true, onClick = onSaveNote)
+            }
+            MasterActionGroup {
+                MasterActionButton("그림조정", enabled = selectedStudentAttempt == null, onClick = onStartImageAdjust)
+                MasterActionButton("테두리조정", enabled = selectedStudentAttempt == null, onClick = onStartFrameAdjust)
+                MasterActionButton(
+                    "조정확정",
+                    enabled = selectedStudentAttempt == null && imageAdjustmentMode != WorksheetImageAdjustmentMode.None,
+                    onClick = onConfirmImageAdjust
+                )
+                MasterActionButton("사진합쳐저장", enabled = selectedStudentAttempt == null, onClick = onMergeIntoImage)
+            }
             if (selectedStudentAttempt != null) {
-                MasterActionButton("풀이삭제", onClick = onDeleteAttempt)
+                MasterActionGroup {
+                    MasterActionButton("풀이삭제", onClick = onDeleteAttempt)
+                }
             }
         }
+    }
+}
+
+@Composable
+private fun MasterActionGroup(content: @Composable RowScope.() -> Unit) {
+    Surface(
+        color = Color(0xFFF4F7FB),
+        shape = RoundedCornerShape(8.dp)
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 4.dp, vertical = 3.dp),
+            horizontalArrangement = Arrangement.spacedBy(3.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            content = content
+        )
     }
 }
 
