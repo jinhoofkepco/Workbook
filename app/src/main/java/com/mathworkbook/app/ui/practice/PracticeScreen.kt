@@ -116,6 +116,7 @@ fun PracticeScreen(
     val focusManager = LocalFocusManager.current
     var imageAdjustmentMode by remember { mutableStateOf(WorksheetImageAdjustmentMode.None) }
     var imageTransformDraft by remember { mutableStateOf(WorksheetImageTransform()) }
+    var lastStudentInkProblemId by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(isMasterMode, initialWorkbookId, initialChapterId, initialProblemId, initialAttemptId) {
         viewModel.setMasterMode(
@@ -141,8 +142,10 @@ fun PracticeScreen(
     LaunchedEffect(isMasterMode, state.currentProblem?.problemId, state.masterNoteVectorJson) {
         if (isMasterMode) {
             handwritingState.loadFromVectorJson(state.masterNoteVectorJson)
-        } else {
+            lastStudentInkProblemId = null
+        } else if (state.currentProblem?.problemId != null && lastStudentInkProblemId != state.currentProblem?.problemId) {
             handwritingState.clear()
+            lastStudentInkProblemId = state.currentProblem?.problemId
         }
     }
 
@@ -155,6 +158,25 @@ fun PracticeScreen(
         if (state.feedback != null) {
             delay(3_000L)
             viewModel.clearFeedback()
+        }
+    }
+
+    LaunchedEffect(
+        isMasterMode,
+        state.currentProblem?.problemId,
+        state.currentProblem?.imageCropRectJson,
+        state.inputByField,
+        state.selectedChoiceIds
+    ) {
+        if (isMasterMode || state.currentProblem == null) {
+            viewModel.clearViewerCurrentScreen()
+            return@LaunchedEffect
+        }
+        while (true) {
+            delay(1_000L)
+            if (viewModel.isViewerRunning()) {
+                viewModel.publishViewerCurrentScreen(handwritingState.toVectorJson())
+            }
         }
     }
 
@@ -211,6 +233,9 @@ fun PracticeScreen(
                             modifier = Modifier.fillMaxSize(),
                             contentHeight = worksheetContentHeight,
                             inputOverlayEnabled = imageAdjustmentMode == WorksheetImageAdjustmentMode.None,
+                            onDrawingStart = {
+                                focusManager.clearFocus(force = true)
+                            },
                             toolbarLeadingContent = {
                                 ToolbarNavButton(
                                     text = "‹",
@@ -406,6 +431,14 @@ private fun ProblemSolvingScreen(
 ) {
     val selectedStudentAttempt = state.selectedStudentAttempt()
     val focusManager = LocalFocusManager.current
+    var historyInfoAttempt by remember(state.currentProblem?.problemId) { mutableStateOf<PracticeAttemptEntity?>(null) }
+
+    LaunchedEffect(historyInfoAttempt?.attemptId, isMasterMode) {
+        if (!isMasterMode && historyInfoAttempt != null) {
+            delay(3_000L)
+            historyInfoAttempt = null
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -435,23 +468,28 @@ private fun ProblemSolvingScreen(
                     if (state.showCorrectMark && !isMasterMode) {
                         CorrectCircleOverlay()
                     }
-                    if (isMasterMode) {
-                        MasterAttemptButtons(
-                            attempts = state.attemptsForProblem,
-                            selectedAttemptId = state.selectedStudentAttemptId,
-                            onToggle = viewModel::toggleStudentAttempt,
+                    ProblemAttemptHistoryStrip(
+                        attempts = state.attemptsForProblem,
+                        selectedAttemptId = if (isMasterMode) state.selectedStudentAttemptId else null,
+                        onClick = { attempt ->
+                            if (isMasterMode) {
+                                viewModel.toggleStudentAttempt(attempt.attemptId)
+                            } else {
+                                historyInfoAttempt = attempt
+                            }
+                        },
+                        modifier = Modifier
+                            .align(Alignment.TopStart)
+                            .padding(start = 8.dp, top = 64.dp)
+                    )
+                    val visibleHistoryInfo = if (isMasterMode) selectedStudentAttempt else historyInfoAttempt
+                    visibleHistoryInfo?.let { attempt ->
+                        AttemptHistoryInfoOverlay(
+                            attempt = attempt,
                             modifier = Modifier
-                                .align(Alignment.TopEnd)
-                                .padding(top = 58.dp, end = 18.dp)
+                                .align(Alignment.TopStart)
+                                .padding(start = 34.dp, top = 64.dp)
                         )
-                        selectedStudentAttempt?.let { attempt ->
-                            MasterAttemptInfoOverlay(
-                                attempt = attempt,
-                                modifier = Modifier
-                                    .align(Alignment.TopStart)
-                                    .padding(start = 12.dp, top = 42.dp)
-                            )
-                        }
                     }
                 }
                 if (isMasterMode) {
@@ -1069,6 +1107,88 @@ private fun StudentSolutionPanel(
         }
         Text("학생 답: ${formatSubmittedAnswer(logs)}")
         SolutionVectorPreview(path = attempt.solutionImagePath, height = 240.dp)
+    }
+}
+
+@Composable
+private fun ProblemAttemptHistoryStrip(
+    attempts: List<PracticeAttemptEntity>,
+    selectedAttemptId: String?,
+    onClick: (PracticeAttemptEntity) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val visibleAttempts = attempts
+        .filter { it.inputTryCount > 0 || it.finalStatus != FinalStatus.IN_PROGRESS }
+        .sortedByDescending { it.submittedAt ?: it.startedAt }
+        .take(12)
+    if (visibleAttempts.isEmpty()) return
+    Column(
+        modifier = modifier,
+        verticalArrangement = Arrangement.spacedBy(5.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        visibleAttempts.forEach { attempt ->
+            val selected = selectedAttemptId == attempt.attemptId
+            Box(
+                modifier = Modifier
+                    .size(width = 18.dp, height = 38.dp)
+                    .clip(RoundedCornerShape(5.dp))
+                    .background(attemptHistoryFill(attempt))
+                    .border(
+                        width = if (selected) 2.dp else 1.dp,
+                        color = if (selected) attemptHistoryStroke(attempt) else Color(0x66FFFFFF),
+                        shape = RoundedCornerShape(5.dp)
+                    )
+                    .clickable { onClick(attempt) }
+            )
+        }
+    }
+}
+
+@Composable
+private fun AttemptHistoryInfoOverlay(
+    attempt: PracticeAttemptEntity,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        modifier = modifier,
+        colors = CardDefaults.cardColors(containerColor = Color(0xCCFFFFFF)),
+        shape = RoundedCornerShape(10.dp)
+    ) {
+        Text(
+            text = "${attemptHistoryLabel(attempt)} · ${formatAttemptDate(attempt.submittedAt ?: attempt.startedAt)}",
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp),
+            color = attemptHistoryStroke(attempt),
+            fontWeight = FontWeight.SemiBold,
+            style = MaterialTheme.typography.labelMedium
+        )
+    }
+}
+
+private fun attemptHistoryFill(attempt: PracticeAttemptEntity): Color {
+    return when {
+        attempt.finalStatus == FinalStatus.CORRECT || attempt.isCorrect == true -> Color(0xFFDBEAFE)
+        attempt.finalStatus == FinalStatus.MANUAL_REVIEW_REQUIRED -> Color(0xFFFEF3C7)
+        attempt.inputTryCount > 0 || attempt.isCorrect == false -> Color(0xFFFEE2E2)
+        else -> Color(0xFFE5E7EB)
+    }
+}
+
+private fun attemptHistoryStroke(attempt: PracticeAttemptEntity): Color {
+    return when {
+        attempt.finalStatus == FinalStatus.CORRECT || attempt.isCorrect == true -> Color(0xFF2563EB)
+        attempt.finalStatus == FinalStatus.MANUAL_REVIEW_REQUIRED -> Color(0xFFD97706)
+        attempt.inputTryCount > 0 || attempt.isCorrect == false -> Color(0xFFDC2626)
+        else -> Color(0xFF6B7280)
+    }
+}
+
+private fun attemptHistoryLabel(attempt: PracticeAttemptEntity): String {
+    return when {
+        attempt.finalStatus == FinalStatus.CORRECT || attempt.isCorrect == true -> "정답"
+        attempt.finalStatus == FinalStatus.MANUAL_REVIEW_REQUIRED -> "검토 필요"
+        attempt.inputTryCount > 0 || attempt.isCorrect == false -> "오답"
+        else -> "진행 중"
     }
 }
 

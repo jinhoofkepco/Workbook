@@ -20,6 +20,7 @@ import com.mathworkbook.app.core.domain.ManualReviewStatus
 import com.mathworkbook.app.core.domain.ProblemType
 import com.mathworkbook.app.core.files.FileStorage
 import com.mathworkbook.app.core.usecase.SubmitPracticeAnswerUseCase
+import com.mathworkbook.app.core.viewer.ViewerCurrentScreenSnapshot
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -67,6 +68,7 @@ class PracticeViewModel(
 ) : ViewModel() {
     private val studentId = "student-demo"
     private var masterMode: Boolean = false
+    private var submitInFlight: Boolean = false
     private val _state = MutableStateFlow(PracticeUiState())
     val state: StateFlow<PracticeUiState> = _state
 
@@ -334,6 +336,34 @@ class PracticeViewModel(
         _state.update { it.copy(feedback = null) }
     }
 
+    fun publishViewerCurrentScreen(solutionVectorJson: String) {
+        if (!container.viewerServer.state.value.running) return
+        val current = _state.value
+        val problem = current.currentProblem ?: run {
+            container.viewerServer.clearCurrentScreen()
+            return
+        }
+        container.viewerServer.updateCurrentScreen(
+            ViewerCurrentScreenSnapshot(
+                workbookTitle = current.selectedWorkbook?.title.orEmpty(),
+                chapterTitle = current.selectedChapter?.title.orEmpty(),
+                positionLabel = "${current.currentIndex + 1}/${current.problems.size}",
+                problem = problem,
+                currentAnswer = current.inputByField.values
+                    .filter { it.isNotBlank() }
+                    .joinToString(", "),
+                solutionVectorJson = solutionVectorJson,
+                updatedAt = System.currentTimeMillis()
+            )
+        )
+    }
+
+    fun clearViewerCurrentScreen() {
+        container.viewerServer.clearCurrentScreen()
+    }
+
+    fun isViewerRunning(): Boolean = container.viewerServer.state.value.running
+
     fun toggleCorrectAnswer() {
         _state.update { it.copy(showCorrectAnswer = !it.showCorrectAnswer) }
     }
@@ -341,13 +371,17 @@ class PracticeViewModel(
     fun submit(solutionVectorJson: String? = null) {
         val current = _state.value
         val problem = current.currentProblem ?: return
-        if (current.submitting) return
+        if (submitInFlight || current.submitting) return
+        submitInFlight = true
         viewModelScope.launch {
             _state.update { it.copy(submitting = true, feedback = null, showCorrectMark = false) }
-            val solutionPath = solutionVectorJson?.let {
+            val existingAttempt = dao.getOpenPracticeAttempt(studentId, problem.problemId)
+            val shouldSaveSolution = !solutionVectorJson.isNullOrBlank() &&
+                (solutionVectorJson.hasInkStrokes() || existingAttempt?.solutionImagePath.isNullOrBlank())
+            val solutionPath = solutionVectorJson?.takeIf { shouldSaveSolution }?.let {
                 fileStorage.saveSolutionVectorJson(
                     studentId = studentId,
-                    attemptOrSessionId = "practice-${System.currentTimeMillis()}",
+                    attemptOrSessionId = existingAttempt?.attemptId ?: "practice-${System.currentTimeMillis()}",
                     problemId = problem.problemId,
                     vectorJson = it
                 )
@@ -391,6 +425,10 @@ class PracticeViewModel(
                 delay(1_000L)
                 moveNext(clearFeedback = true)
             }
+            submitInFlight = false
+        }.invokeOnCompletion {
+            submitInFlight = false
+            _state.update { state -> state.copy(submitting = false) }
         }
     }
 
@@ -727,6 +765,16 @@ class PracticeViewModel(
             problem.problemType == ProblemType.MULTI_FIELD -> KeyboardType.MULTI_FIELD
             else -> KeyboardType.INTEGER
         }
+    }
+
+    private fun String.hasInkStrokes(): Boolean {
+        return runCatching {
+            val strokes = JSONObject(this).optJSONArray("strokes") ?: return@runCatching false
+            (0 until strokes.length()).any { strokeIndex ->
+                val points = strokes.optJSONObject(strokeIndex)?.optJSONArray("points")
+                points != null && points.length() > 0
+            }
+        }.getOrDefault(false)
     }
 }
 

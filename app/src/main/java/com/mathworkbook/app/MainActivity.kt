@@ -3,14 +3,18 @@ package com.mathworkbook.app
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import com.mathworkbook.app.core.AppContainer
 import com.mathworkbook.app.ui.MathWorkbookApp
 
 class MainActivity : ComponentActivity() {
+    private val rehideNavigationRunnable = Runnable { hideNavigationBar() }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        keepNavigationBarHiddenAfterAccidentalReveal()
         hideNavigationBar()
         val container = AppContainer(applicationContext)
         setContent {
@@ -18,9 +22,24 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    override fun onResume() {
+        super.onResume()
+        hideNavigationBar()
+    }
+
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
         if (hasFocus) hideNavigationBar()
+    }
+
+    private fun keepNavigationBarHiddenAfterAccidentalReveal() {
+        ViewCompat.setOnApplyWindowInsetsListener(window.decorView) { view, insets ->
+            if (insets.isVisible(WindowInsetsCompat.Type.navigationBars())) {
+                view.removeCallbacks(rehideNavigationRunnable)
+                view.postDelayed(rehideNavigationRunnable, 450L)
+            }
+            insets
+        }
     }
 
     private fun hideNavigationBar() {

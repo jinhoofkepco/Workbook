@@ -390,17 +390,55 @@ private fun WorksheetProblemImage(
             modifier = sizeModifier
                 .onGloballyPositioned { coordinates ->
                     val position = coordinates.positionInRoot()
+                    val contentScale = config.resolveContentScale(problem)
+                    val renderedImageBounds = visibleImageBoundsInFrame(
+                        frameWidth = coordinates.size.width.toFloat(),
+                        frameHeight = coordinates.size.height.toFloat(),
+                        imageAspectRatio = imageAspectRatio,
+                        contentScale = contentScale
+                    )
                     onImageBoundsChanged?.invoke(
                         WorksheetImageBounds(
-                            left = position.x - rootLeft + transform.offsetX,
-                            top = position.y - rootTop + transform.offsetY,
-                            width = coordinates.size.width.toFloat() * transform.scale,
-                            height = coordinates.size.height.toFloat() * transform.scale
+                            left = position.x - rootLeft + transform.offsetX + renderedImageBounds.left * transform.scale,
+                            top = position.y - rootTop + transform.offsetY + renderedImageBounds.top * transform.scale,
+                            width = renderedImageBounds.width * transform.scale,
+                            height = renderedImageBounds.height * transform.scale
                         )
                     )
                 }
                 .then(transformModifier)
-                .background(Color.White, RoundedCornerShape(8.dp))
+        )
+    }
+}
+
+private fun visibleImageBoundsInFrame(
+    frameWidth: Float,
+    frameHeight: Float,
+    imageAspectRatio: Float?,
+    contentScale: ContentScale
+): WorksheetImageBounds {
+    if (frameWidth <= 0f || frameHeight <= 0f || imageAspectRatio == null || imageAspectRatio <= 0f) {
+        return WorksheetImageBounds(0f, 0f, frameWidth, frameHeight)
+    }
+    if (contentScale == ContentScale.Crop) {
+        return WorksheetImageBounds(0f, 0f, frameWidth, frameHeight)
+    }
+    val frameAspectRatio = frameWidth / frameHeight
+    return if (frameAspectRatio > imageAspectRatio) {
+        val visibleWidth = frameHeight * imageAspectRatio
+        WorksheetImageBounds(
+            left = (frameWidth - visibleWidth) / 2f,
+            top = 0f,
+            width = visibleWidth,
+            height = frameHeight
+        )
+    } else {
+        val visibleHeight = frameWidth / imageAspectRatio
+        WorksheetImageBounds(
+            left = 0f,
+            top = (frameHeight - visibleHeight) / 2f,
+            width = frameWidth,
+            height = visibleHeight
         )
     }
 }

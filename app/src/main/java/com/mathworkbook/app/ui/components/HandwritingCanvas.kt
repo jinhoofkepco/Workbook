@@ -292,13 +292,16 @@ fun HandwritingCanvas(
     toolbarLeadingContent: @Composable RowScope.() -> Unit = {},
     toolbarCenterContent: @Composable BoxScope.() -> Unit = {},
     toolbarTrailingContent: @Composable RowScope.() -> Unit = {},
+    onDrawingStart: () -> Unit = {},
     backgroundContent: @Composable () -> Unit = {},
     foregroundContent: @Composable BoxScope.() -> Unit = {}
 ) {
     var drawingEnabled by remember { mutableStateOf(true) }
     var currentTool by remember { mutableStateOf(DrawingTools.first()) }
+    var lastDrawingTool by remember { mutableStateOf(DrawingTools.first()) }
     var penWidth by remember { mutableStateOf(PenWidthOptions.first()) }
     var toolMenuExpanded by remember { mutableStateOf(false) }
+    var floatingToolMenuPosition by remember { mutableStateOf<Offset?>(null) }
     var scrollOffsetPx by remember { mutableStateOf(0f) }
     val eraserRadius = 22.dp
     val density = LocalDensity.current
@@ -353,6 +356,11 @@ fun HandwritingCanvas(
                     view.eraserRadiusPx = with(density) { eraserRadius.toPx() }
                     view.stylusOnlyDrawing = stylusOnlyDrawing
                     view.contentScrollOffsetPx = scrollOffsetPx
+                    view.onDrawingStart = onDrawingStart
+                    view.onStylusButtonPressed = { x, y ->
+                        floatingToolMenuPosition = Offset(x, y)
+                        toolMenuExpanded = false
+                    }
                     view.onFingerScroll = { delta ->
                         scrollOffsetPx = (scrollOffsetPx + delta).coerceIn(0f, maxScrollPx)
                     }
@@ -421,7 +429,7 @@ fun HandwritingCanvas(
                 .zIndex(4f),
             horizontalArrangement = Arrangement.spacedBy(4.dp)
         ) {
-            val visibleDrawingTool = if (currentTool.kind == ToolKind.Eraser) DrawingTools.first() else currentTool
+            val visibleDrawingTool = if (currentTool.kind == ToolKind.Eraser) lastDrawingTool else currentTool
             PenWidthButton(
                 width = penWidth,
                 onClick = { penWidth = penWidth.nextPenWidth() }
@@ -430,7 +438,15 @@ fun HandwritingCanvas(
                 ToolCircleButton(
                     tool = visibleDrawingTool,
                     selected = drawingEnabled && currentTool.kind != ToolKind.Eraser,
-                    onClick = { toolMenuExpanded = !toolMenuExpanded }
+                    onClick = {
+                        if (currentTool.kind == ToolKind.Eraser) {
+                            currentTool = lastDrawingTool
+                            drawingEnabled = true
+                            toolMenuExpanded = false
+                        } else {
+                            toolMenuExpanded = !toolMenuExpanded
+                        }
+                    }
                 )
                 if (toolMenuExpanded) {
                     Column(
@@ -447,6 +463,7 @@ fun HandwritingCanvas(
                                 selected = currentTool.id == tool.id && currentTool.kind != ToolKind.Eraser,
                                 onClick = {
                                     currentTool = tool
+                                    lastDrawingTool = tool
                                     drawingEnabled = true
                                     toolMenuExpanded = false
                                 }
@@ -465,6 +482,67 @@ fun HandwritingCanvas(
             UndoButton(onClick = state::undoLastStroke)
             toolbarTrailingContent()
         }
+
+        floatingToolMenuPosition?.let { position ->
+            FloatingToolMenu(
+                anchor = position,
+                viewportWidthPx = with(density) { maxWidth.toPx() },
+                viewportHeightPx = viewportHeightPx,
+                currentTool = currentTool,
+                onSelectTool = { tool ->
+                    currentTool = tool
+                    if (tool.kind != ToolKind.Eraser) {
+                        lastDrawingTool = tool
+                    }
+                    drawingEnabled = true
+                    floatingToolMenuPosition = null
+                }
+            )
+        }
+    }
+}
+
+@Composable
+private fun FloatingToolMenu(
+    anchor: Offset,
+    viewportWidthPx: Float,
+    viewportHeightPx: Float,
+    currentTool: DrawingTool,
+    onSelectTool: (DrawingTool) -> Unit
+) {
+    val density = LocalDensity.current
+    val menuWidthPx = with(density) { 186.dp.toPx() }
+    val menuHeightPx = with(density) { 42.dp.toPx() }
+    val marginPx = with(density) { 8.dp.toPx() }
+    val offsetX = (anchor.x - menuWidthPx / 2f).coerceIn(marginPx, viewportWidthPx - menuWidthPx - marginPx)
+    val aboveY = anchor.y - menuHeightPx - marginPx
+    val belowY = anchor.y + marginPx
+    val offsetY = if (aboveY >= marginPx) {
+        aboveY
+    } else {
+        belowY.coerceIn(marginPx, viewportHeightPx - menuHeightPx - marginPx)
+    }
+    Row(
+        modifier = Modifier
+            .offset { IntOffset(offsetX.roundToInt(), offsetY.roundToInt()) }
+            .zIndex(8f)
+            .background(Color.White, RoundedCornerShape(22.dp))
+            .border(1.dp, Color(0xFFE5E7EB), RoundedCornerShape(22.dp))
+            .padding(horizontal = 6.dp, vertical = 5.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        DrawingTools.forEach { tool ->
+            ToolCircleButton(
+                tool = tool,
+                selected = currentTool.id == tool.id && currentTool.kind != ToolKind.Eraser,
+                onClick = { onSelectTool(tool) }
+            )
+        }
+        EraserButton(
+            selected = currentTool.kind == ToolKind.Eraser,
+            onClick = { onSelectTool(EraserTool) }
+        )
     }
 }
 
@@ -656,6 +734,8 @@ private class InkDrawingView(context: Context) : View(context) {
             field = value
             postInvalidateOnAnimation()
         }
+    var onDrawingStart: (() -> Unit)? = null
+    var onStylusButtonPressed: ((Float, Float) -> Unit)? = null
     var onFingerScroll: ((Float) -> Unit)? = null
 
     init {
@@ -682,6 +762,9 @@ private class InkDrawingView(context: Context) : View(context) {
     override fun onTouchEvent(event: MotionEvent): Boolean {
         val currentState = state ?: return false
         val action = event.actionMasked
+        if (handleStylusButtonEvent(event)) {
+            return true
+        }
         if (event.fingerPointerCount() >= 2 && (action == MotionEvent.ACTION_POINTER_DOWN || action == MotionEvent.ACTION_MOVE)) {
             if (!twoFingerScrollActive) {
                 startTwoFingerScroll(currentState, event)
@@ -711,6 +794,7 @@ private class InkDrawingView(context: Context) : View(context) {
                     activePointerId = event.getPointerId(pointerIndex)
                     activeToolKind = eventToolKind(event, pointerIndex)
                     activePointerStartedByFinger = false
+                    onDrawingStart?.invoke()
                     handlePoint(currentState, event.contentXFor(pointerIndex), event.contentYFor(pointerIndex), start = true)
                     return true
                 }
@@ -726,6 +810,7 @@ private class InkDrawingView(context: Context) : View(context) {
                 activePointerId = event.getPointerId(pointerIndex)
                 activeToolKind = eventToolKind(event, pointerIndex)
                 activePointerStartedByFinger = event.getToolType(pointerIndex) == MotionEvent.TOOL_TYPE_FINGER
+                onDrawingStart?.invoke()
                 handlePoint(currentState, event.contentXFor(pointerIndex), event.contentYFor(pointerIndex), start = true)
                 return true
             }
@@ -761,6 +846,20 @@ private class InkDrawingView(context: Context) : View(context) {
             }
         }
         return true
+    }
+
+    override fun onGenericMotionEvent(event: MotionEvent): Boolean {
+        if (handleStylusButtonEvent(event)) {
+            return true
+        }
+        return super.onGenericMotionEvent(event)
+    }
+
+    override fun onHoverEvent(event: MotionEvent): Boolean {
+        if (handleStylusButtonEvent(event)) {
+            return true
+        }
+        return super.onHoverEvent(event)
     }
 
     override fun onDraw(canvas: AndroidCanvas) {
@@ -817,6 +916,15 @@ private class InkDrawingView(context: Context) : View(context) {
         } else {
             state.append(position)
         }
+    }
+
+    private fun handleStylusButtonEvent(event: MotionEvent): Boolean {
+        val pointerIndex = event.actionIndex.coerceIn(0, event.pointerCount - 1)
+        if (!event.isStylusLike(pointerIndex)) return false
+        if (!event.hasStylusSideButton()) return false
+        finishStroke()
+        onStylusButtonPressed?.invoke(event.xFor(pointerIndex), event.yFor(pointerIndex))
+        return true
     }
 
     private fun MotionEvent.contentXFor(pointerIndex: Int): Float = getX(pointerIndex)
@@ -906,6 +1014,12 @@ private class InkDrawingView(context: Context) : View(context) {
 private fun MotionEvent.xFor(pointerIndex: Int): Float = getX(pointerIndex)
 
 private fun MotionEvent.yFor(pointerIndex: Int): Float = getY(pointerIndex)
+
+private fun MotionEvent.hasStylusSideButton(): Boolean {
+    val stylusButtons = MotionEvent.BUTTON_STYLUS_PRIMARY or MotionEvent.BUTTON_STYLUS_SECONDARY
+    return (buttonState and stylusButtons) != 0 || actionButton == MotionEvent.BUTTON_STYLUS_PRIMARY ||
+        actionButton == MotionEvent.BUTTON_STYLUS_SECONDARY
+}
 
 private fun MotionEvent.isStylusLike(pointerIndex: Int): Boolean {
     if (isFromSource(InputDevice.SOURCE_STYLUS)) return true

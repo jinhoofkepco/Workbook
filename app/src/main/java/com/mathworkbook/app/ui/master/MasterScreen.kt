@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -46,6 +47,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -64,9 +66,12 @@ import com.mathworkbook.app.ui.components.SolutionVectorOverlay
 import com.mathworkbook.app.ui.components.estimateWorksheetContentHeightDp
 import com.mathworkbook.app.ui.components.parseProblemTeacherNotes
 import com.mathworkbook.app.ui.skin.SkinAssetImage
+import com.google.zxing.BarcodeFormat
+import com.google.zxing.MultiFormatWriter
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import kotlin.math.min
 
 enum class MasterToolAction {
     ExamCreate,
@@ -843,8 +848,19 @@ private fun SettingsDialog(
                 }
                 state.viewerServer.url?.let { url ->
                     Card(colors = CardDefaults.cardColors(containerColor = Color(0xFFEFF6FF))) {
-                        Column(modifier = Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(10.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
                             Text("핸드폰에서 열 주소", fontWeight = FontWeight.SemiBold, color = Color(0xFF1D4ED8))
+                            ViewerQrCode(
+                                url = url,
+                                modifier = Modifier.size(176.dp)
+                            )
+                            Text("핸드폰 카메라로 QR을 찍어 열 수 있습니다.", color = Color(0xFF1D4ED8))
                             Text(url, color = Color(0xFF1D4ED8))
                         }
                     }
@@ -860,6 +876,45 @@ private fun SettingsDialog(
             }
         }
     )
+}
+
+@Composable
+private fun ViewerQrCode(
+    url: String,
+    modifier: Modifier = Modifier
+) {
+    val matrix = remember(url) {
+        runCatching {
+            MultiFormatWriter().encode(url, BarcodeFormat.QR_CODE, 96, 96)
+        }.getOrNull()
+    }
+    if (matrix == null) {
+        Text("QR 생성 실패", color = MaterialTheme.colorScheme.error)
+        return
+    }
+    Canvas(
+        modifier = modifier
+            .background(Color.White)
+            .padding(10.dp)
+    ) {
+        drawRect(Color.White)
+        val cellSize = min(size.width / matrix.width, size.height / matrix.height)
+        val drawWidth = matrix.width * cellSize
+        val drawHeight = matrix.height * cellSize
+        val left = (size.width - drawWidth) / 2f
+        val top = (size.height - drawHeight) / 2f
+        for (x in 0 until matrix.width) {
+            for (y in 0 until matrix.height) {
+                if (matrix[x, y]) {
+                    drawRect(
+                        color = Color.Black,
+                        topLeft = Offset(left + x * cellSize, top + y * cellSize),
+                        size = Size(cellSize, cellSize)
+                    )
+                }
+            }
+        }
+    }
 }
 
 @Composable
