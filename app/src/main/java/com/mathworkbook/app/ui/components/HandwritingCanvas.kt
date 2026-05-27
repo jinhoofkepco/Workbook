@@ -407,7 +407,7 @@ fun HandwritingCanvas(
             modifier = Modifier
                 .align(Alignment.TopCenter)
                 .padding(top = 2.dp)
-                .fillMaxWidth(0.30f)
+                .fillMaxWidth(0.42f)
                 .zIndex(4f),
             contentAlignment = Alignment.Center
         ) {

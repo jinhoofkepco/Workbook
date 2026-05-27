@@ -8,7 +8,10 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -42,10 +45,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mathworkbook.app.core.domain.FinalStatus
+import com.mathworkbook.app.ui.skin.LocalWorkbookSkin
+import com.mathworkbook.app.ui.skin.SkinAssetImage
 
 @Composable
 fun DashboardScreen(
@@ -71,11 +78,21 @@ fun DashboardScreen(
     }
 
     Surface(modifier = modifier.fillMaxSize().statusBarsPadding(), color = Color(0xFFF7F8FA)) {
+        Box(modifier = Modifier.fillMaxSize()) {
+            SkinAssetImage(
+                assetKey = "dashboardBackground",
+                modifier = Modifier.matchParentSize(),
+                contentScale = ContentScale.Crop,
+                alpha = 0.82f
+            )
+            if (state.selectedWorkbookId == null) {
+                DashboardPageFrame()
+            }
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+                .padding(horizontal = 22.dp, vertical = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             state.message?.let {
                 Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)) {
@@ -84,30 +101,33 @@ fun DashboardScreen(
             }
 
             if (state.selectedWorkbookId == null) {
-                Column(modifier = Modifier.fillMaxWidth()) {
-                    Text("문제집 선택", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-                    Text(
-                        if (isMasterMode) "문제집을 길게 누르면 삭제할 수 있습니다." else "문제집을 골라 진도를 확인합니다.",
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-                LazyVerticalGrid(
-                    columns = GridCells.Fixed(3),
-                    modifier = Modifier.fillMaxSize(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    gridItems(state.workbookSummaries) { summary ->
-                        WorkbookCard(
-                            summary = summary,
-                            isMasterMode = isMasterMode,
-                            onClick = { viewModel.selectWorkbook(summary.workbook.workbookId) },
-                            onLongClick = if (isMasterMode) {
-                                { workbookToDelete = summary }
-                            } else {
-                                null
+                DashboardTitleHeader(isMasterMode = isMasterMode)
+                Box(modifier = Modifier.fillMaxSize()) {
+                    DashboardShelfBands()
+                    LazyVerticalGrid(
+                        columns = GridCells.Fixed(3),
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(top = 16.dp, bottom = 48.dp),
+                        horizontalArrangement = Arrangement.spacedBy(28.dp),
+                        verticalArrangement = Arrangement.spacedBy(42.dp)
+                    ) {
+                        gridItems(state.workbookSummaries) { summary ->
+                            Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.TopCenter) {
+                                WorkbookCard(
+                                    summary = summary,
+                                    isMasterMode = isMasterMode,
+                                    onClick = { viewModel.selectWorkbook(summary.workbook.workbookId) },
+                                    onLongClick = if (isMasterMode) {
+                                        { workbookToDelete = summary }
+                                    } else {
+                                        null
+                                    },
+                                    modifier = Modifier
+                                        .width(if (isMasterMode) 214.dp else 198.dp)
+                                        .aspectRatio(0.72f)
+                                )
                             }
-                        )
+                        }
                     }
                 }
             } else {
@@ -165,6 +185,7 @@ fun DashboardScreen(
                 }
             }
         }
+        }
     }
 
     workbookToDelete?.let { summary ->
@@ -189,6 +210,93 @@ fun DashboardScreen(
                     Text("삭제")
                 }
             }
+        )
+    }
+}
+
+@Composable
+private fun DashboardTitleHeader(isMasterMode: Boolean) {
+    val titleAssetKey = if (LocalWorkbookSkin.current?.assetPath("dashboardTitleFrame") != null) {
+        "dashboardTitleFrame"
+    } else {
+        "dashboardTitleBanner"
+    }
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(112.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Box(
+            modifier = Modifier
+                .width(620.dp)
+                .height(92.dp)
+                .background(Color(0xBFFFFFFF), RoundedCornerShape(18.dp))
+                .border(1.dp, Color(0x33A78BFA), RoundedCornerShape(18.dp))
+        )
+        SkinAssetImage(
+            assetKey = titleAssetKey,
+            modifier = Modifier
+                .width(680.dp)
+                .height(106.dp),
+            contentScale = ContentScale.FillBounds,
+            alpha = 0.98f
+        )
+        Column(
+            modifier = Modifier
+                .width(620.dp)
+                .padding(horizontal = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                "박서아의 문제집들",
+                style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth()
+            )
+            if (isMasterMode) {
+                Text(
+                    "문제집을 길게 누르면 삭제할 수 있습니다.",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun BoxScope.DashboardPageFrame() {
+    SkinAssetImage(
+        assetKey = "dashboardPageFrame",
+        modifier = Modifier.matchParentSize(),
+        contentScale = ContentScale.FillBounds,
+        alpha = 0.94f
+    )
+    Box(
+        modifier = Modifier
+            .matchParentSize()
+            .padding(start = 12.dp, top = 12.dp, end = 12.dp, bottom = 72.dp)
+            .border(1.dp, Color(0x22A16207), RoundedCornerShape(28.dp))
+    )
+}
+
+@Composable
+private fun BoxScope.DashboardShelfBands() {
+    val shelfTops = listOf(246.dp, 568.dp, 890.dp)
+    shelfTops.forEach { top ->
+        SkinAssetImage(
+            assetKey = "bookShelfBand",
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .padding(top = top)
+                .fillMaxWidth()
+                .height(82.dp),
+            contentScale = ContentScale.FillBounds,
+            alpha = 0.62f
         )
     }
 }
@@ -238,15 +346,14 @@ private fun WorkbookCard(
     summary: WorkbookProgressSummary,
     isMasterMode: Boolean,
     onClick: () -> Unit,
-    onLongClick: (() -> Unit)? = null
+    onLongClick: (() -> Unit)? = null,
+    modifier: Modifier = Modifier
 ) {
     WorkbookCoverView(
         summary = summary,
         compact = false,
         showStats = isMasterMode,
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(if (isMasterMode) 230.dp else 200.dp)
+        modifier = modifier
             .combinedClickable(
                 onClick = onClick,
                 onLongClick = onLongClick
@@ -262,6 +369,7 @@ private fun WorkbookCoverView(
     modifier: Modifier = Modifier
 ) {
     val coverShape = RoundedCornerShape(8.dp)
+    val activeSkin = LocalWorkbookSkin.current
     Card(
         modifier = modifier,
         colors = CardDefaults.cardColors(containerColor = Color(0xFFFDF7EC)),
@@ -274,13 +382,32 @@ private fun WorkbookCoverView(
                 .background(Color(0xFFFDF7EC))
                 .clip(coverShape)
         ) {
+            SkinAssetImage(
+                assetKey = "bookCoverShadow",
+                modifier = Modifier.matchParentSize(),
+                contentScale = ContentScale.Crop,
+                alpha = 0.5f
+            )
+            SkinAssetImage(
+                assetKey = "bookCoverBase",
+                modifier = Modifier.matchParentSize(),
+                contentScale = ContentScale.Crop
+            )
             Box(
                 modifier = Modifier
                     .fillMaxHeight()
                     .width(if (compact) 18.dp else 24.dp)
                     .background(Color(0xFF6E7FA7))
                     .border(1.dp, Color(0xFF4D5D85))
-            )
+            ) {
+                if (activeSkin?.assetPath("bookCoverSpine") != null) {
+                    SkinAssetImage(
+                        assetKey = "bookCoverSpine",
+                        modifier = Modifier.matchParentSize(),
+                        contentScale = ContentScale.Crop
+                    )
+                }
+            }
             Box(
                 modifier = Modifier
                     .align(Alignment.TopEnd)
@@ -314,9 +441,9 @@ private fun WorkbookCoverView(
                 )
                 Text(
                     summary.workbook.title,
-                    style = if (compact) MaterialTheme.typography.titleSmall else MaterialTheme.typography.titleLarge,
+                    style = if (compact) MaterialTheme.typography.titleSmall else MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
-                    maxLines = if (compact) 2 else 1
+                    maxLines = if (compact) 2 else 2
                 )
                 Text(
                     summary.workbook.description.ifBlank { "문제 ${summary.totalProblems}개" },
@@ -353,16 +480,24 @@ private fun ChapterRow(
         colors = CardDefaults.cardColors(containerColor = if (highlighted) Color(0xFFEFF6FF) else Color.White),
         border = if (highlighted) BorderStroke(2.dp, Color(0xFF2563EB)) else null
     ) {
-        Row(modifier = Modifier.padding(14.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text("${summary.chapter.orderIndex}", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
-            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                    Text(summary.chapter.title, modifier = Modifier.weight(1f), fontWeight = FontWeight.SemiBold)
-                    Text("${summary.solvedProblems}/${summary.totalProblems} · ${summary.progressPercent}%")
-                    if (isMasterMode) Text(if (expanded) "접기" else "문제 보기")
+        Box(modifier = Modifier.fillMaxWidth()) {
+            SkinAssetImage(
+                assetKey = "chapterRowTab",
+                modifier = Modifier.matchParentSize(),
+                contentScale = ContentScale.FillBounds,
+                alpha = 0.24f
+            )
+            Row(modifier = Modifier.padding(14.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text("${summary.chapter.orderIndex}", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                        Text(summary.chapter.title, modifier = Modifier.weight(1f), fontWeight = FontWeight.SemiBold)
+                        Text("${summary.solvedProblems}/${summary.totalProblems} · ${summary.progressPercent}%")
+                        if (isMasterMode) Text(if (expanded) "접기" else "문제 보기")
+                    }
+                    ProgressBar(summary.progressPercent)
+                    if (isMasterMode) CompactStats(summary.correctProblems, summary.wrongProblems, summary.attemptCount)
                 }
-                ProgressBar(summary.progressPercent)
-                if (isMasterMode) CompactStats(summary.correctProblems, summary.wrongProblems, summary.attemptCount)
             }
         }
     }

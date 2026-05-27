@@ -23,6 +23,8 @@ import com.mathworkbook.app.core.domain.RelativeRect
 import com.mathworkbook.app.core.domain.UnitType
 import com.mathworkbook.app.core.files.FileStorage
 import com.mathworkbook.app.core.files.WorkbookImportService
+import com.mathworkbook.app.core.skin.NotSkinZipException
+import com.mathworkbook.app.core.skin.SkinManagerState
 import com.mathworkbook.app.core.viewer.ViewerServerState
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -42,6 +44,7 @@ data class MasterUiState(
     val correctAnswersByProblem: Map<String, List<String>> = emptyMap(),
     val examSessions: List<ExamSessionEntity> = emptyList(),
     val maxTryCount: Int = 3,
+    val skinManager: SkinManagerState = SkinManagerState(),
     val viewerServer: ViewerServerState = ViewerServerState(),
     val message: String? = null
 )
@@ -101,6 +104,11 @@ class MasterViewModel(
                 _state.update { it.copy(viewerServer = viewerState) }
             }
         }
+        viewModelScope.launch {
+            container.skinManager.state.collect { skinState ->
+                _state.update { it.copy(skinManager = skinState, message = skinState.message ?: it.message) }
+            }
+        }
     }
 
     fun updateCorrectAnswer(rule: AnswerRuleEntity, rawAnswer: String) {
@@ -142,6 +150,39 @@ class MasterViewModel(
             )
             _state.update { it.copy(maxTryCount = clamped, message = "입력 제한이 ${clamped}회로 저장되었습니다.") }
         }
+    }
+
+    fun importExternalZip(uri: Uri, onImported: () -> Unit = {}) {
+        viewModelScope.launch {
+            runCatching {
+                container.skinManager.importZip(uri)
+            }.onSuccess { skin ->
+                onImported()
+                _state.update { it.copy(message = "스킨을 적용했습니다: ${skin.displayName}") }
+            }.onFailure { skinError ->
+                if (skinError !is NotSkinZipException) {
+                    _state.update { it.copy(message = "스킨 가져오기 실패: ${skinError.message}") }
+                    return@launch
+                }
+                runCatching {
+                    workbookImportService.importZip(uri)
+                }.onSuccess { workbookId ->
+                    refreshCatalog()
+                    onImported()
+                    _state.update { it.copy(message = "문제집을 가져왔습니다: $workbookId") }
+                }.onFailure { error ->
+                    _state.update { it.copy(message = "가져오기 실패: ${error.message}") }
+                }
+            }
+        }
+    }
+
+    fun clearActiveSkin() {
+        container.skinManager.clearActiveSkin()
+    }
+
+    fun setActiveSkin(skinId: String) {
+        container.skinManager.setActiveSkin(skinId)
     }
 
     fun importWorkbookZip(uri: Uri, onImported: () -> Unit = {}) {

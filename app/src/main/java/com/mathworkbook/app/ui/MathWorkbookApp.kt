@@ -22,6 +22,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -31,8 +32,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.mathworkbook.app.core.AppContainer
 import com.mathworkbook.app.core.database.PracticeAttemptEntity
@@ -49,6 +52,8 @@ import com.mathworkbook.app.ui.master.MasterViewModelFactory
 import com.mathworkbook.app.ui.practice.PracticeScreen
 import com.mathworkbook.app.ui.practice.PracticeViewModel
 import com.mathworkbook.app.ui.practice.PracticeViewModelFactory
+import com.mathworkbook.app.ui.skin.LocalWorkbookSkin
+import com.mathworkbook.app.ui.skin.SkinAssetImage
 
 private enum class RootTab(val label: String) {
     Dashboard("진도판"),
@@ -74,7 +79,6 @@ fun MathWorkbookApp(container: AppContainer) {
     var keepMasterLogin by remember { mutableStateOf(false) }
     var pin by remember { mutableStateOf("") }
     var pinError by remember { mutableStateOf<String?>(null) }
-    var mainMenuExpanded by remember { mutableStateOf(false) }
     var toolsExpanded by remember { mutableStateOf(false) }
     var activeMasterTool by remember { mutableStateOf<MasterToolAction?>(null) }
     var dashboardRefreshKey by remember { mutableIntStateOf(0) }
@@ -110,21 +114,21 @@ fun MathWorkbookApp(container: AppContainer) {
         if (isMasterMode) {
             isMasterMode = false
             toolsExpanded = false
-            mainMenuExpanded = false
         } else if (masterUnlockedThisRun) {
             isMasterMode = true
-            mainMenuExpanded = false
         } else {
             pin = ""
             pinError = null
             keepMasterLogin = false
             showMasterLogin = true
-            mainMenuExpanded = false
             toolsExpanded = false
         }
     }
 
+    val skinState by container.skinManager.state.collectAsStateWithLifecycle()
+
     MaterialTheme {
+        CompositionLocalProvider(LocalWorkbookSkin provides skinState.activeSkin) {
         val masterViewModel: MasterViewModel = viewModel(factory = MasterViewModelFactory(container))
         Box(modifier = Modifier.fillMaxSize()) {
             Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
@@ -179,6 +183,11 @@ fun MathWorkbookApp(container: AppContainer) {
                                             currentChapterId = chapterId
                                             currentProblemId = problemId
                                         },
+                                        onOpenProgress = {
+                                            selectedTab = RootTab.Dashboard
+                                            activeMasterTool = null
+                                            toolsExpanded = false
+                                        },
                                         onInitialChapterHandled = {
                                             pendingPracticeWorkbookId = null
                                             pendingPracticeChapterId = null
@@ -205,26 +214,10 @@ fun MathWorkbookApp(container: AppContainer) {
                     }
 
                     BottomMenu(
-                        selectedTab = selectedTab,
-                        mainMenuExpanded = mainMenuExpanded,
                         isMasterMode = isMasterMode,
                         toolsExpanded = toolsExpanded,
-                        onSelectTab = { tab ->
-                            selectedTab = tab
-                            mainMenuExpanded = false
-                            toolsExpanded = false
-                        },
-                        onToggleMainMenu = {
-                            if (mainMenuExpanded || toolsExpanded) {
-                                mainMenuExpanded = false
-                                toolsExpanded = false
-                            } else {
-                                mainMenuExpanded = true
-                            }
-                        },
                         onToggleTools = {
                             toolsExpanded = !toolsExpanded
-                            mainMenuExpanded = false
                         },
                         onSelectTool = { tool ->
                             activeMasterTool = tool
@@ -251,6 +244,7 @@ fun MathWorkbookApp(container: AppContainer) {
                     activeMasterTool = null
                 }
             )
+        }
         }
     }
 
@@ -309,61 +303,44 @@ private const val MAX_PROBLEM_TEXT_SIZE_SP = 36
 
 @Composable
 private fun BottomMenu(
-    selectedTab: RootTab,
-    mainMenuExpanded: Boolean,
     isMasterMode: Boolean,
     toolsExpanded: Boolean,
-    onSelectTab: (RootTab) -> Unit,
-    onToggleMainMenu: () -> Unit,
     onToggleTools: () -> Unit,
     onSelectTool: (MasterToolAction) -> Unit,
     onToggleMasterMode: () -> Unit
 ) {
     Surface(
         tonalElevation = 3.dp,
-        color = MaterialTheme.colorScheme.surface
+        color = Color.Transparent
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .navigationBarsPadding()
-                .heightIn(min = 44.dp)
-                .padding(horizontal = 10.dp, vertical = 6.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            RoundToolButton("메", selected = mainMenuExpanded, onClick = onToggleMainMenu)
-            if (mainMenuExpanded) {
-                MenuButton(
-                    label = RootTab.Dashboard.label,
-                    selected = selectedTab == RootTab.Dashboard,
-                    onClick = { onSelectTab(RootTab.Dashboard) },
-                    modifier = Modifier.weight(1f)
-                )
-                MenuButton(
-                    label = RootTab.Problem.label,
-                    selected = selectedTab == RootTab.Problem,
-                    onClick = { onSelectTab(RootTab.Problem) },
-                    modifier = Modifier.weight(1f)
-                )
-            } else {
+        Box(modifier = Modifier.fillMaxWidth()) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .navigationBarsPadding()
+                    .heightIn(min = 44.dp)
+                    .padding(horizontal = 10.dp, vertical = 6.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 Spacer(modifier = Modifier.weight(1f))
-            }
-            if (isMasterMode) {
-                if (toolsExpanded) {
-                    RoundToolButton("시험") { onSelectTool(MasterToolAction.ExamCreate) }
-                    RoundToolButton("설정") { onSelectTool(MasterToolAction.Settings) }
-                    RoundToolButton("ZIP") { onSelectTool(MasterToolAction.Import) }
-                    RoundToolButton("로그") { onSelectTool(MasterToolAction.Logs) }
+                if (isMasterMode) {
+                    if (toolsExpanded) {
+                        RoundToolButton("시험") { onSelectTool(MasterToolAction.ExamCreate) }
+                        RoundToolButton("설정") { onSelectTool(MasterToolAction.Settings) }
+                        RoundToolButton("ZIP") { onSelectTool(MasterToolAction.Import) }
+                        RoundToolButton("로그") { onSelectTool(MasterToolAction.Logs) }
+                    }
+                    RoundToolButton(if (toolsExpanded) "닫기" else "도구", selected = toolsExpanded, onClick = onToggleTools)
                 }
-                RoundToolButton(if (toolsExpanded) "닫기" else "도구", selected = toolsExpanded, onClick = onToggleTools)
+                RoundToolButton(
+                    label = "마",
+                    selected = isMasterMode,
+                    badgeText = if (isMasterMode) "on" else null,
+                    useSkinFrame = true,
+                    onClick = onToggleMasterMode
+                )
             }
-            RoundToolButton(
-                label = "마",
-                selected = isMasterMode,
-                badgeText = if (isMasterMode) "on" else null,
-                onClick = onToggleMasterMode
-            )
         }
     }
 }
@@ -373,9 +350,17 @@ private fun RoundToolButton(
     label: String,
     selected: Boolean = false,
     badgeText: String? = null,
+    useSkinFrame: Boolean = false,
     onClick: () -> Unit
 ) {
     Box(modifier = Modifier.size(48.dp)) {
+        if (useSkinFrame) {
+            SkinAssetImage(
+                assetKey = if (selected) "roundButtonActive" else "roundButtonIdle",
+                modifier = Modifier.matchParentSize(),
+                contentScale = ContentScale.FillBounds
+            )
+        }
         OutlinedButton(
             onClick = onClick,
             modifier = Modifier.size(48.dp),

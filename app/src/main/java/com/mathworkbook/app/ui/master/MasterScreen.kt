@@ -47,6 +47,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -62,6 +63,7 @@ import com.mathworkbook.app.ui.components.ProblemWorksheetFooterOverlay
 import com.mathworkbook.app.ui.components.SolutionVectorOverlay
 import com.mathworkbook.app.ui.components.estimateWorksheetContentHeightDp
 import com.mathworkbook.app.ui.components.parseProblemTeacherNotes
+import com.mathworkbook.app.ui.skin.SkinAssetImage
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -90,11 +92,11 @@ fun MasterToolLayer(
     val zipContentContract = remember { ZipFilePickerContract(Intent.ACTION_GET_CONTENT) }
     val zipDocumentPicker = rememberLauncherForActivityResult(
         contract = zipDocumentContract,
-        onResult = { uri -> uri?.let { viewModel.importWorkbookZip(it, onWorkbookImported) } }
+        onResult = { uri -> uri?.let { viewModel.importExternalZip(it, onWorkbookImported) } }
     )
     val zipContentPicker = rememberLauncherForActivityResult(
         contract = zipContentContract,
-        onResult = { uri -> uri?.let { viewModel.importWorkbookZip(it, onWorkbookImported) } }
+        onResult = { uri -> uri?.let { viewModel.importExternalZip(it, onWorkbookImported) } }
     )
     val zipMimeTypes = remember {
         listOf(
@@ -123,7 +125,9 @@ fun MasterToolLayer(
             onDismiss = onDismiss,
             onChangeMaxTryCount = viewModel::updateDefaultMaxTryCount,
             onChangeQuestionTextSize = onChangeQuestionTextSize,
-            onSetViewerEnabled = viewModel::setViewerEnabled
+            onSetViewerEnabled = viewModel::setViewerEnabled,
+            onSetActiveSkin = viewModel::setActiveSkin,
+            onClearActiveSkin = viewModel::clearActiveSkin
         )
         MasterToolAction.Import -> ImportDialog(
             onDismiss = onDismiss,
@@ -206,11 +210,11 @@ fun MasterScreen(
     val zipContentContract = remember { ZipFilePickerContract(Intent.ACTION_GET_CONTENT) }
     val zipDocumentPicker = rememberLauncherForActivityResult(
         contract = zipDocumentContract,
-        onResult = { uri -> uri?.let(viewModel::importWorkbookZip) }
+        onResult = { uri -> uri?.let(viewModel::importExternalZip) }
     )
     val zipContentPicker = rememberLauncherForActivityResult(
         contract = zipContentContract,
-        onResult = { uri -> uri?.let(viewModel::importWorkbookZip) }
+        onResult = { uri -> uri?.let(viewModel::importExternalZip) }
     )
     val zipMimeTypes = remember {
         listOf(
@@ -284,7 +288,9 @@ fun MasterScreen(
             onDismiss = { showSettings = false },
             onChangeMaxTryCount = viewModel::updateDefaultMaxTryCount,
             onChangeQuestionTextSize = onChangeQuestionTextSize,
-            onSetViewerEnabled = viewModel::setViewerEnabled
+            onSetViewerEnabled = viewModel::setViewerEnabled,
+            onSetActiveSkin = viewModel::setActiveSkin,
+            onClearActiveSkin = viewModel::clearActiveSkin
         )
     }
 
@@ -761,7 +767,9 @@ private fun SettingsDialog(
     onDismiss: () -> Unit,
     onChangeMaxTryCount: (Int) -> Unit,
     onChangeQuestionTextSize: (Int) -> Unit,
-    onSetViewerEnabled: (Boolean) -> Unit
+    onSetViewerEnabled: (Boolean) -> Unit,
+    onSetActiveSkin: (String) -> Unit,
+    onClearActiveSkin: () -> Unit
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -790,6 +798,33 @@ private fun SettingsDialog(
                     Text("${questionTextSizeSp}sp", modifier = Modifier.padding(12.dp))
                     Button(onClick = { onChangeQuestionTextSize(questionTextSizeSp + 2) }) {
                         Text("+")
+                    }
+                }
+                HorizontalDivider()
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text("화면 스킨", fontWeight = FontWeight.SemiBold)
+                    Text(
+                        state.skinManager.activeSkin?.displayName ?: "기본 화면",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    if (state.skinManager.installedSkins.isNotEmpty()) {
+                        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            items(state.skinManager.installedSkins) { skin ->
+                                FilterChip(
+                                    selected = state.skinManager.activeSkin?.skinId == skin.skinId,
+                                    onClick = { onSetActiveSkin(skin.skinId) },
+                                    label = { Text(skin.displayName) }
+                                )
+                            }
+                        }
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedButton(
+                            onClick = onClearActiveSkin,
+                            enabled = state.skinManager.activeSkin != null
+                        ) {
+                            Text("기본으로")
+                        }
                     }
                 }
                 HorizontalDivider()
@@ -856,11 +891,19 @@ private fun ImportDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("외부 문제집 가져오기") },
+        title = { Text("외부 파일 가져오기") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("ZIP 안에 workbook.json과 이미지 파일을 넣으면 문제집으로 등록됩니다.")
-                Text("이미지 배치와 답 규칙은 docs/workbook-import-format.md 형식을 따릅니다.")
+                SkinAssetImage(
+                    assetKey = "importDropzone",
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(140.dp),
+                    contentScale = ContentScale.Fit,
+                    alpha = 0.9f
+                )
+                Text("문제집 ZIP(workbook.json)과 스킨 ZIP(skin.json 또는 규격 PNG)을 자동으로 구분합니다.")
+                Text("스킨 ZIP은 가져오면 바로 활성 스킨으로 적용됩니다.")
             }
         },
         dismissButton = {

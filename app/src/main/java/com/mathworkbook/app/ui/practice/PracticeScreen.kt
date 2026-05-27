@@ -3,6 +3,7 @@ package com.mathworkbook.app.ui.practice
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -45,11 +46,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -76,6 +79,8 @@ import com.mathworkbook.app.ui.components.estimateWorksheetContentHeightDp
 import com.mathworkbook.app.ui.components.parseWorksheetImageTransform
 import com.mathworkbook.app.ui.components.parseProblemTeacherNotes
 import com.mathworkbook.app.ui.components.rememberHandwritingState
+import com.mathworkbook.app.ui.skin.LocalWorkbookSkin
+import com.mathworkbook.app.ui.skin.SkinAssetImage
 import kotlinx.coroutines.delay
 import org.json.JSONArray
 import org.json.JSONObject
@@ -102,6 +107,7 @@ fun PracticeScreen(
     initialProblemId: String? = null,
     initialAttemptId: String? = null,
     onProblemLocationChanged: (workbookId: String, chapterId: String, problemId: String) -> Unit = { _, _, _ -> },
+    onOpenProgress: () -> Unit = {},
     onInitialChapterHandled: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
@@ -214,22 +220,14 @@ fun PracticeScreen(
                                         viewModel.movePrevious()
                                     }
                                 )
-                                OutlinedButton(
-                                    onClick = viewModel::showHint,
-                                    modifier = Modifier
-                                        .size(30.dp)
-                                        .defaultMinSize(minWidth = 0.dp, minHeight = 0.dp),
-                                    shape = CircleShape,
-                                    contentPadding = PaddingValues(0.dp)
-                                ) {
-                                    Text("H", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
-                                }
+                                ToolbarHintButton(onClick = viewModel::showHint)
                             },
                             toolbarCenterContent = {
                                 WorksheetLocationLabel(
                                     workbookTitle = state.selectedWorkbook?.title.orEmpty(),
                                     chapterTitle = state.selectedChapter?.title.orEmpty(),
-                                    position = "${state.currentIndex + 1}/${state.problems.size}"
+                                    position = "${state.currentIndex + 1}/${state.problems.size}",
+                                    onClick = onOpenProgress
                                 )
                             },
                             toolbarTrailingContent = {
@@ -540,22 +538,53 @@ private val NextNavShape = GenericShape { size, _ ->
 private fun WorksheetLocationLabel(
     workbookTitle: String,
     chapterTitle: String,
-    position: String
+    position: String,
+    onClick: () -> Unit
 ) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = Color(0xEFFFFFFF)),
-        shape = RoundedCornerShape(10.dp)
+    val hasSkinHeader = LocalWorkbookSkin.current?.assetPath("problemHeaderPill") != null
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(44.dp)
+            .clip(RoundedCornerShape(14.dp))
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center
     ) {
+        Box(
+            modifier = Modifier
+                .align(Alignment.Center)
+                .fillMaxWidth()
+                .height(36.dp)
+                .clip(RoundedCornerShape(13.dp))
+                .background(if (hasSkinHeader) Color.Transparent else Color(0xF7FFFFFF))
+                .border(
+                    width = if (hasSkinHeader) 0.dp else 1.dp,
+                    color = Color(0x1F2563EB),
+                    shape = RoundedCornerShape(13.dp)
+                )
+        )
+        SkinAssetImage(
+            assetKey = "problemHeaderPill",
+            modifier = Modifier
+                .align(Alignment.Center)
+                .fillMaxWidth()
+                .height(38.dp),
+            contentScale = ContentScale.FillBounds,
+            alpha = 1f
+        )
         Row(
-            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            modifier = Modifier
+                .align(Alignment.Center)
+                .fillMaxWidth()
+                .height(36.dp)
+                .padding(horizontal = 12.dp, vertical = 5.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
                 text = workbookTitle.ifBlank { "문제집" },
                 modifier = Modifier.weight(1f),
-                style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
+                style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
@@ -563,8 +592,9 @@ private fun WorksheetLocationLabel(
             Text(
                 text = "${chapterTitle.ifBlank { "단원" }} · $position",
                 modifier = Modifier.weight(1f),
-                style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
+                style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontWeight = FontWeight.Medium,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
@@ -579,20 +609,71 @@ private fun ToolbarNavButton(
     modifier: Modifier = Modifier,
     onClick: () -> Unit
 ) {
+    val assetKey = if (direction == NavDirection.Previous) "navArrowPrevious" else "navArrowNext"
+    val hasSkinArrow = LocalWorkbookSkin.current?.assetPath(assetKey) != null
+    val shape = if (direction == NavDirection.Previous) PreviousNavShape else NextNavShape
+    Box(
+        modifier = modifier.size(width = 48.dp, height = 44.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        SkinAssetImage(
+            assetKey = assetKey,
+            modifier = Modifier
+                .align(Alignment.Center)
+                .size(width = 44.dp, height = 38.dp),
+            contentScale = ContentScale.FillBounds,
+            alpha = 1f
+        )
     OutlinedButton(
         onClick = onClick,
-        modifier = modifier
-            .size(width = 30.dp, height = 28.dp)
+        modifier = Modifier
+            .matchParentSize()
             .defaultMinSize(minWidth = 0.dp, minHeight = 0.dp),
-        shape = if (direction == NavDirection.Previous) PreviousNavShape else NextNavShape,
-        border = BorderStroke(1.4.dp, Color(0xFF2563EB)),
+        shape = shape,
+        border = if (hasSkinArrow) null else BorderStroke(1.4.dp, Color(0xFF2563EB)),
         colors = ButtonDefaults.outlinedButtonColors(
-            containerColor = Color(0xF2FFFFFF),
+            containerColor = if (hasSkinArrow) Color.Transparent else Color(0xF2FFFFFF),
             contentColor = Color(0xFF2563EB)
         ),
         contentPadding = PaddingValues(0.dp)
     ) {
-        Text(text, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+        Text(text, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+    }
+    }
+}
+
+@Composable
+private fun ToolbarHintButton(
+    onClick: () -> Unit
+) {
+    val hasSkinButton = LocalWorkbookSkin.current?.assetPath("hintButton") != null
+    Box(
+        modifier = Modifier.size(44.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        SkinAssetImage(
+            assetKey = "hintButton",
+            modifier = Modifier
+                .align(Alignment.Center)
+                .size(38.dp),
+            contentScale = ContentScale.FillBounds,
+            alpha = 1f
+        )
+        OutlinedButton(
+            onClick = onClick,
+            modifier = Modifier
+                .matchParentSize()
+                .defaultMinSize(minWidth = 0.dp, minHeight = 0.dp),
+            shape = CircleShape,
+            border = if (hasSkinButton) null else BorderStroke(1.2.dp, Color(0xFF7C3AED)),
+            colors = ButtonDefaults.outlinedButtonColors(
+                containerColor = if (hasSkinButton) Color.Transparent else Color(0xF2FFFFFF),
+                contentColor = Color(0xFF7C3AED)
+            ),
+            contentPadding = PaddingValues(0.dp)
+        ) {
+            Text("?", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+        }
     }
 }
 
@@ -1320,12 +1401,54 @@ private fun AnswerInputControls(
                 }
             }
         }
+        SubmitGraphicButton(
+            submitting = state.submitting,
+            onSubmit = onSubmit
+        )
+    }
+}
+
+@Composable
+private fun SubmitGraphicButton(
+    submitting: Boolean,
+    onSubmit: () -> Unit
+) {
+    val hasSkinButton = LocalWorkbookSkin.current?.assetPath("submitButton") != null
+    if (hasSkinButton) {
+        Box(
+            modifier = Modifier
+                .size(width = 124.dp, height = 58.dp)
+                .clip(RoundedCornerShape(14.dp)),
+            contentAlignment = Alignment.Center
+        ) {
+            SkinAssetImage(
+                assetKey = "submitButton",
+                modifier = Modifier.matchParentSize(),
+                contentScale = ContentScale.FillBounds,
+                alpha = 1f
+            )
+            Button(
+                onClick = onSubmit,
+                enabled = !submitting,
+                modifier = Modifier.matchParentSize(),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Color.Transparent,
+                    disabledContainerColor = Color.Transparent,
+                    contentColor = Color(0xFF111827),
+                    disabledContentColor = Color(0xFF6B7280)
+                ),
+                contentPadding = PaddingValues(0.dp)
+            ) {
+                Text(if (submitting) "채점중" else "제출", fontWeight = FontWeight.Bold)
+            }
+        }
+    } else {
         Button(
             onClick = onSubmit,
-            enabled = !state.submitting,
+            enabled = !submitting,
             modifier = Modifier.height(56.dp)
         ) {
-            Text(if (state.submitting) "채점중" else "제출")
+            Text(if (submitting) "채점중" else "제출")
         }
     }
 }

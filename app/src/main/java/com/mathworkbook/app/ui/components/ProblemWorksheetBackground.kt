@@ -37,6 +37,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.mathworkbook.app.core.database.ProblemEntity
+import com.mathworkbook.app.ui.skin.SkinAssetImage
 import org.json.JSONObject
 import kotlin.math.roundToInt
 
@@ -178,7 +179,7 @@ private fun ProblemWorksheetLayout(
         problem.questionLatex.isNullOrBlank()
     val horizontalPadding = if (imageOnly) 0.dp else 24.dp
 
-    Column(
+    Box(
         modifier = modifier
             .fillMaxSize()
             .onGloballyPositioned { coordinates ->
@@ -186,9 +187,21 @@ private fun ProblemWorksheetLayout(
                 rootLeft = rootPosition.x
                 rootTop = rootPosition.y
             }
-            .padding(start = horizontalPadding, end = horizontalPadding, top = 36.dp, bottom = 22.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
+        if (bodyMode == WorksheetBodyMode.Visible) {
+            SkinAssetImage(
+                assetKey = "problemPaperBackground",
+                modifier = Modifier.matchParentSize(),
+                contentScale = ContentScale.Crop,
+                alpha = 0.34f
+            )
+        }
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(start = horizontalPadding, end = horizontalPadding, top = 36.dp, bottom = 22.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
         if (problem == null) {
             Text("문제 없음", color = emptyColor)
             footerContent()
@@ -247,6 +260,7 @@ private fun ProblemWorksheetLayout(
         }
 
         footerContent()
+    }
     }
 }
 
