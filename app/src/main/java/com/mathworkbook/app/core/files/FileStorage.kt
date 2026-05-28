@@ -13,6 +13,8 @@ import com.mathworkbook.app.core.domain.RelativeRect
 import org.json.JSONObject
 import java.io.File
 import java.io.FileOutputStream
+import kotlin.math.max
+import kotlin.math.min
 
 class FileStorage(private val context: Context) {
     private val root: File = File(context.filesDir, "math_workbook")
@@ -87,6 +89,86 @@ class FileStorage(private val context: Context) {
         val output = File(solutionDir(studentId, attemptOrSessionId), "$problemId-solution-vector.json")
         output.writeText(vectorJson)
         return output.absolutePath
+    }
+
+    fun saveSolutionThumbnailFromVectorJson(solutionVectorPath: String, vectorJson: String): String? {
+        return runCatching {
+            val vectorFile = File(solutionVectorPath)
+            val thumbFile = File(
+                vectorFile.parentFile,
+                vectorFile.name
+                    .removeSuffix("-solution-vector.json")
+                    .removeSuffix(".json") + "-solution-thumb.jpg"
+            )
+            val root = JSONObject(vectorJson)
+            val strokes = root.optJSONArray("strokes") ?: return@runCatching null
+            if (strokes.length() == 0) return@runCatching null
+
+            var minX = Float.POSITIVE_INFINITY
+            var minY = Float.POSITIVE_INFINITY
+            var maxX = Float.NEGATIVE_INFINITY
+            var maxY = Float.NEGATIVE_INFINITY
+            for (strokeIndex in 0 until strokes.length()) {
+                val points = strokes.optJSONObject(strokeIndex)?.optJSONArray("points") ?: continue
+                for (pointIndex in 0 until points.length()) {
+                    val point = points.optJSONObject(pointIndex) ?: continue
+                    val x = point.optDouble("x", 0.0).toFloat()
+                    val y = point.optDouble("y", 0.0).toFloat()
+                    minX = min(minX, x)
+                    minY = min(minY, y)
+                    maxX = max(maxX, x)
+                    maxY = max(maxY, y)
+                }
+            }
+            if (!minX.isFinite() || !minY.isFinite() || !maxX.isFinite() || !maxY.isFinite()) {
+                return@runCatching null
+            }
+
+            val margin = 40f
+            val contentWidth = root.optDouble("contentWidth", 1200.0).toFloat().coerceAtLeast(1f)
+            val contentHeight = root.optDouble("contentHeight", 800.0).toFloat().coerceAtLeast(1f)
+            val left = max(0f, minX - margin)
+            val top = max(0f, minY - margin)
+            val right = min(contentWidth, maxX + margin)
+            val bottom = min(contentHeight, maxY + margin)
+            val sourceWidth = max(1f, right - left)
+            val sourceHeight = max(1f, bottom - top)
+            val maxThumbWidth = 360f
+            val maxThumbHeight = 220f
+            val scale = min(maxThumbWidth / sourceWidth, maxThumbHeight / sourceHeight).coerceAtMost(1.6f)
+            val bitmapWidth = max(120, (sourceWidth * scale).toInt())
+            val bitmapHeight = max(80, (sourceHeight * scale).toInt())
+            val bitmap = Bitmap.createBitmap(bitmapWidth, bitmapHeight, Bitmap.Config.ARGB_8888)
+            val canvas = Canvas(bitmap)
+            canvas.drawColor(Color.WHITE)
+
+            for (strokeIndex in 0 until strokes.length()) {
+                val stroke = strokes.optJSONObject(strokeIndex) ?: continue
+                val points = stroke.optJSONArray("points") ?: continue
+                if (points.length() == 0) continue
+                val path = Path()
+                for (pointIndex in 0 until points.length()) {
+                    val point = points.optJSONObject(pointIndex) ?: continue
+                    val x = (point.optDouble("x", 0.0).toFloat() - left) * scale
+                    val y = (point.optDouble("y", 0.0).toFloat() - top) * scale
+                    if (pointIndex == 0) path.moveTo(x, y) else path.lineTo(x, y)
+                }
+                val isHighlighter = stroke.optString("kind") == "Highlighter"
+                val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                    style = Paint.Style.STROKE
+                    color = runCatching { Color.parseColor(stroke.optString("color")) }.getOrDefault(Color.BLACK)
+                    strokeWidth = (stroke.optDouble("width", 5.0).toFloat() * scale).coerceAtLeast(1.2f)
+                    strokeCap = if (isHighlighter) Paint.Cap.BUTT else Paint.Cap.ROUND
+                    strokeJoin = if (isHighlighter) Paint.Join.BEVEL else Paint.Join.ROUND
+                }
+                canvas.drawPath(path, paint)
+            }
+            FileOutputStream(thumbFile).use { stream ->
+                bitmap.compress(Bitmap.CompressFormat.JPEG, 78, stream)
+            }
+            bitmap.recycle()
+            thumbFile.absolutePath
+        }.getOrNull()
     }
 
     fun saveMasterNoteVectorJson(problemId: String, vectorJson: String): String {

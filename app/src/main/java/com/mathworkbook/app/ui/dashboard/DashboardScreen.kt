@@ -103,7 +103,6 @@ fun DashboardScreen(
             if (state.selectedWorkbookId == null) {
                 DashboardTitleHeader(isMasterMode = isMasterMode)
                 Box(modifier = Modifier.fillMaxSize()) {
-                    DashboardShelfBands()
                     LazyVerticalGrid(
                         columns = GridCells.Fixed(3),
                         modifier = Modifier.fillMaxSize(),
@@ -285,23 +284,6 @@ private fun BoxScope.DashboardPageFrame() {
 }
 
 @Composable
-private fun BoxScope.DashboardShelfBands() {
-    val shelfTops = listOf(246.dp, 568.dp, 890.dp)
-    shelfTops.forEach { top ->
-        SkinAssetImage(
-            assetKey = "bookShelfBand",
-            modifier = Modifier
-                .align(Alignment.TopCenter)
-                .padding(top = top)
-                .fillMaxWidth()
-                .height(82.dp),
-            contentScale = ContentScale.FillBounds,
-            alpha = 0.62f
-        )
-    }
-}
-
-@Composable
 private fun SelectedWorkbookHeader(
     summary: WorkbookProgressSummary,
     onClickBook: () -> Unit,
@@ -382,12 +364,6 @@ private fun WorkbookCoverView(
                 .background(Color(0xFFFDF7EC))
                 .clip(coverShape)
         ) {
-            SkinAssetImage(
-                assetKey = "bookCoverShadow",
-                modifier = Modifier.matchParentSize(),
-                contentScale = ContentScale.Crop,
-                alpha = 0.5f
-            )
             SkinAssetImage(
                 assetKey = "bookCoverBase",
                 modifier = Modifier.matchParentSize(),

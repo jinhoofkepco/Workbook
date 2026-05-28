@@ -336,7 +336,7 @@ class PracticeViewModel(
         _state.update { it.copy(feedback = null) }
     }
 
-    fun publishViewerCurrentScreen(solutionVectorJson: String) {
+    fun publishViewerCurrentScreen(solutionVectorJson: String, snapshotRevision: Long) {
         if (!container.viewerServer.state.value.running) return
         val current = _state.value
         val problem = current.currentProblem ?: run {
@@ -353,6 +353,7 @@ class PracticeViewModel(
                     .filter { it.isNotBlank() }
                     .joinToString(", "),
                 solutionVectorJson = solutionVectorJson,
+                revision = snapshotRevision,
                 updatedAt = System.currentTimeMillis()
             )
         )
@@ -379,12 +380,14 @@ class PracticeViewModel(
             val shouldSaveSolution = !solutionVectorJson.isNullOrBlank() &&
                 (solutionVectorJson.hasInkStrokes() || existingAttempt?.solutionImagePath.isNullOrBlank())
             val solutionPath = solutionVectorJson?.takeIf { shouldSaveSolution }?.let {
-                fileStorage.saveSolutionVectorJson(
+                val path = fileStorage.saveSolutionVectorJson(
                     studentId = studentId,
                     attemptOrSessionId = existingAttempt?.attemptId ?: "practice-${System.currentTimeMillis()}",
                     problemId = problem.problemId,
                     vectorJson = it
                 )
+                fileStorage.saveSolutionThumbnailFromVectorJson(path, it)
+                path
             }
             val result = submitPracticeAnswerUseCase.submit(
                 studentId = studentId,

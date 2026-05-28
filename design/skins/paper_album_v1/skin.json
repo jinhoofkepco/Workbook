@@ -1,7 +1,7 @@
 {
   "skinId": "paper_album_v1",
   "displayName": "Paper Album v1",
-  "version": 1,
+  "version": 2,
   "targetDevice": {
     "orientation": "portrait",
     "baseWidthPx": 1600,
@@ -11,8 +11,6 @@
     "dashboardBackground": "assets/dashboard_bg_1600x2560.png",
     "bookCoverBase": "assets/book_cover_base_512x700.png",
     "bookCoverSpine": "assets/book_cover_spine_96x700.png",
-    "bookCoverShadow": "assets/book_cover_shadow_512x700.png",
-    "bookShelfBand": "assets/book_shelf_band_1600x260.png",
     "dashboardPageFrame": "assets/dashboard_page_frame_1600x2400.png",
     "dashboardTitleBanner": "assets/dashboard_title_banner_1200x220.png",
     "dashboardTitleFrame": "assets/dashboard_title_frame_1000x180.png",
@@ -20,26 +18,19 @@
     "problemPaperBackground": "assets/problem_paper_bg_1600x2560.png",
     "toolbarStrip": "assets/toolbar_strip_1600x96.png",
     "problemHeaderPill": "assets/problem_header_pill_900x96.png",
+    "masterButtonIdle": "assets/master_button_idle_128x128.png",
+    "masterButtonActive": "assets/master_button_active_128x128.png",
     "navArrowPrevious": "assets/nav_arrow_previous_160x128.png",
     "navArrowNext": "assets/nav_arrow_next_160x128.png",
     "hintButton": "assets/hint_button_128x128.png",
     "submitButton": "assets/submit_button_320x128.png",
-    "bottomMenuPlate": "assets/bottom_menu_plate_1600x160.png",
-    "roundButtonIdle": "assets/round_btn_idle_128x128.png",
-    "roundButtonActive": "assets/round_btn_active_128x128.png",
-    "masterActionGroup": "assets/master_action_group_900x96.png",
+    "gradingButton": "assets/grading_button_320x128.png",
     "answerStampBlue": "assets/answer_stamp_blue_512x180.png",
-    "answerWrongSlash": "assets/answer_wrong_slash_512x180.png",
-    "reviewNoteCard": "assets/review_note_card_960x360.png",
-    "importDropzone": "assets/import_dropzone_1200x520.png",
-    "logPopupBackground": "assets/log_popup_bg_1200x1000.png"
+    "answerWrongSlash": "assets/answer_wrong_slash_512x180.png"
   },
   "layoutNotes": {
-    "dashboard": "상단 0~160px과 하단 2380~2560px은 조용하게 유지한다. 가운데 160~2260px에는 문제집 카드 3열 그리드가 놓인다.",
-    "bookCover": "왼쪽 12~16% 폭은 책등으로 비워 두고, 표지 중앙 130~520px은 제목 텍스트가 올라갈 수 있게 무늬를 낮은 대비로 유지한다.",
-    "chapterRows": "소단원 행은 여러 줄이 세로로 쌓이므로 위아래 경계와 그림자가 과하게 튀지 않게 한다.",
-    "buttons": "원형 버튼은 내부 글자나 아이콘을 앱에서 얹을 수 있도록 중앙을 비워 둔다.",
-    "problem": "문제와 필기를 방해하지 않도록 배경 질감은 아주 약하게 둔다. 도구 레이어가 놓이는 160~260px 영역은 특히 밝고 단순해야 한다.",
-    "masterTools": "마스터 액션 그룹은 하단 메뉴 바로 위에 놓이며 정답/노트, 그림/테두리 조정, 확정/저장 묶음이 구분되어 보이도록 한다."
+    "conceptWorkflow": "AI creates one high-quality concept board. The cutter tool extracts transparent PNG assets from that board.",
+    "removedAssets": "bookCoverShadow, bookShelfBand, bottomMenuPlate, roundButtonIdle, roundButtonActive, masterActionGroup, reviewNoteCard, importDropzone, and logPopupBackground are no longer part of the recommended skin split.",
+    "buttons": "Button PNGs should include their own icon or visual state. The app does not draw extra text over skinned navigation, hint, master, submit, or grading buttons."
   }
 }

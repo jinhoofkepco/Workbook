@@ -5,7 +5,22 @@ import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Update
+import com.mathworkbook.app.core.domain.FinalStatus
 import kotlinx.coroutines.flow.Flow
+
+data class CompletedPracticeAttemptSummary(
+    val attemptId: String,
+    val attemptNumber: Int,
+    val problemId: String,
+    val problemOrder: Int,
+    val problemQuestionText: String,
+    val workbookTitle: String,
+    val chapterTitle: String,
+    val finalStatus: FinalStatus,
+    val isCorrect: Boolean?,
+    val eventAt: Long,
+    val solutionImagePath: String?
+)
 
 @Dao
 interface MathDao {
@@ -192,11 +207,42 @@ interface MathDao {
     @Query("SELECT * FROM PracticeAttemptEntity WHERE finalStatus != 'IN_PROGRESS' ORDER BY submittedAt DESC, startedAt DESC LIMIT :limit")
     suspend fun getCompletedPracticeAttempts(limit: Int): List<PracticeAttemptEntity>
 
+    @Query(
+        """
+        SELECT
+            attempt.attemptId AS attemptId,
+            attempt.attemptNumber AS attemptNumber,
+            attempt.problemId AS problemId,
+            COALESCE(problem.orderIndex, 0) AS problemOrder,
+            COALESCE(problem.questionText, '') AS problemQuestionText,
+            COALESCE(workbook.title, '') AS workbookTitle,
+            COALESCE(chapter.title, '') AS chapterTitle,
+            attempt.finalStatus AS finalStatus,
+            attempt.isCorrect AS isCorrect,
+            COALESCE(attempt.submittedAt, attempt.startedAt) AS eventAt,
+            attempt.solutionImagePath AS solutionImagePath
+        FROM PracticeAttemptEntity attempt
+        LEFT JOIN ProblemEntity problem ON problem.problemId = attempt.problemId
+        LEFT JOIN WorkbookEntity workbook ON workbook.workbookId = attempt.workbookId
+        LEFT JOIN ChapterEntity chapter ON chapter.chapterId = attempt.chapterId
+        WHERE attempt.finalStatus != 'IN_PROGRESS'
+        ORDER BY attempt.submittedAt DESC, attempt.startedAt DESC
+        LIMIT :limit
+        """
+    )
+    suspend fun getCompletedPracticeAttemptSummaries(limit: Int): List<CompletedPracticeAttemptSummary>
+
     @Query("SELECT * FROM PracticeAttemptEntity WHERE studentId = :studentId AND problemId = :problemId ORDER BY startedAt DESC")
     suspend fun getPracticeAttemptsForProblem(studentId: String, problemId: String): List<PracticeAttemptEntity>
 
     @Query("SELECT * FROM AttemptInputLogEntity WHERE attemptId = :attemptId ORDER BY tryNumber, submittedAt")
     suspend fun getAttemptInputLogs(attemptId: String): List<AttemptInputLogEntity>
+
+    @Query("SELECT * FROM AttemptInputLogEntity WHERE attemptId IN (:attemptIds) ORDER BY attemptId, tryNumber, submittedAt")
+    suspend fun getAttemptInputLogsForAttempts(attemptIds: List<String>): List<AttemptInputLogEntity>
+
+    @Query("SELECT * FROM AnswerFieldEntity WHERE problemId IN (:problemIds) ORDER BY problemId, orderIndex")
+    suspend fun getAnswerFieldsForProblems(problemIds: List<String>): List<AnswerFieldEntity>
 
     @Query("SELECT * FROM AppSettingsEntity WHERE settingId = 'default' LIMIT 1")
     suspend fun getAppSettings(): AppSettingsEntity?

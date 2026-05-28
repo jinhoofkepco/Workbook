@@ -5,6 +5,7 @@ import android.graphics.Canvas as AndroidCanvas
 import android.graphics.Color as AndroidColor
 import android.graphics.Paint
 import android.graphics.Path as AndroidPath
+import android.os.SystemClock
 import android.view.InputDevice
 import android.view.MotionEvent
 import android.view.View
@@ -46,6 +47,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -54,10 +56,54 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.zIndex
+import com.mathworkbook.app.ui.skin.SkinAssetImage
 import org.json.JSONArray
 import org.json.JSONObject
+import kotlin.math.max
+import kotlin.math.min
 import kotlin.math.roundToInt
 import kotlin.math.sqrt
+
+internal data class StrokeBounds(
+    val left: Float,
+    val top: Float,
+    val right: Float,
+    val bottom: Float
+) {
+    fun expanded(amount: Float): StrokeBounds {
+        return StrokeBounds(left - amount, top - amount, right + amount, bottom + amount)
+    }
+
+    fun include(point: Offset, padding: Float): StrokeBounds {
+        return StrokeBounds(
+            left = min(left, point.x - padding),
+            top = min(top, point.y - padding),
+            right = max(right, point.x + padding),
+            bottom = max(bottom, point.y + padding)
+        )
+    }
+
+    fun intersects(other: StrokeBounds): Boolean {
+        return left <= other.right && right >= other.left && top <= other.bottom && bottom >= other.top
+    }
+
+    companion object {
+        fun from(points: List<Offset>, padding: Float): StrokeBounds {
+            if (points.isEmpty()) return StrokeBounds(0f, 0f, 0f, 0f)
+            var left = points.first().x
+            var top = points.first().y
+            var right = points.first().x
+            var bottom = points.first().y
+            points.drop(1).forEach { point ->
+                left = min(left, point.x)
+                top = min(top, point.y)
+                right = max(right, point.x)
+                bottom = max(bottom, point.y)
+            }
+            return StrokeBounds(left - padding, top - padding, right + padding, bottom + padding)
+        }
+    }
+}
 
 class Stroke(
     points: List<Offset>,
@@ -67,6 +113,8 @@ class Stroke(
 ) {
     val points: MutableList<Offset> = points.toMutableList()
     internal val path = AndroidPath()
+    internal var bounds: StrokeBounds = StrokeBounds.from(points, width / 2f)
+        private set
 
     init {
         rebuildPath()
@@ -81,6 +129,7 @@ class Stroke(
             path.lineTo(position.x, position.y)
         }
         points += position
+        bounds = bounds.include(position, width / 2f)
         return true
     }
 
@@ -95,6 +144,10 @@ class Stroke(
 
     fun copyWithPoints(points: List<Offset>): Stroke {
         return Stroke(points = points, color = color, width = width, kind = kind)
+    }
+
+    fun deepCopy(): Stroke {
+        return copyWithPoints(points.toList())
     }
 }
 
@@ -130,21 +183,36 @@ private val PenWidthOptions = listOf(3f, 5f, 8f, 11f)
 @Stable
 class HandwritingState {
     private val _strokes = mutableListOf<Stroke>()
+    private val undoSnapshots = mutableListOf<List<Stroke>>()
     val strokes: List<Stroke> get() = _strokes
     internal var onChanged: (() -> Unit)? = null
     private var contentWidthPx: Float = 0f
     private var contentHeightPx: Float = 0f
     private var imageBounds: WorksheetImageBounds? = null
+    private var _changeVersion: Long = 0L
+    private var _lastChangedAtMillis: Long = 0L
+
+    val changeVersion: Long get() = _changeVersion
+    val lastChangedAtMillis: Long get() = _lastChangedAtMillis
 
     fun clear() {
         _strokes.clear()
-        onChanged?.invoke()
+        undoSnapshots.clear()
+        notifyChanged()
     }
 
     fun undoLastStroke() {
+        val snapshot = undoSnapshots.lastOrNull()
+        if (snapshot != null) {
+            undoSnapshots.removeAt(undoSnapshots.lastIndex)
+            _strokes.clear()
+            _strokes.addAll(snapshot.map { it.deepCopy() })
+            notifyChanged()
+            return
+        }
         if (_strokes.isEmpty()) return
         _strokes.removeAt(_strokes.lastIndex)
-        onChanged?.invoke()
+        notifyChanged()
     }
 
     fun updateContentSize(widthPx: Float, heightPx: Float) {
@@ -157,14 +225,15 @@ class HandwritingState {
     }
 
     fun start(position: Offset, color: Color, width: Float, kind: StrokeKind) {
+        rememberUndoSnapshot()
         _strokes += Stroke(points = listOf(position), color = color, width = width, kind = kind)
-        onChanged?.invoke()
+        notifyChanged()
     }
 
     fun append(position: Offset) {
         val changed = _strokes.lastOrNull()?.addPoint(position) == true
         if (changed) {
-            onChanged?.invoke()
+            notifyChanged()
         }
     }
 
@@ -172,7 +241,10 @@ class HandwritingState {
         val lastStroke = _strokes.lastOrNull() ?: return
         if (lastStroke.points.size != 1) return
         _strokes.removeAt(_strokes.lastIndex)
-        onChanged?.invoke()
+        if (undoSnapshots.isNotEmpty()) {
+            undoSnapshots.removeAt(undoSnapshots.lastIndex)
+        }
+        notifyChanged()
     }
 
     fun eraseAt(position: Offset, radius: Float) {
@@ -200,15 +272,55 @@ class HandwritingState {
         }
         _strokes.clear()
         _strokes.addAll(updated)
-        onChanged?.invoke()
+        notifyChanged()
+    }
+
+    fun erasePath(eraserPoints: List<Offset>, radius: Float): Boolean {
+        if (_strokes.isEmpty() || eraserPoints.isEmpty()) return false
+        val eraserBounds = StrokeBounds.from(eraserPoints, radius)
+        val updated = mutableListOf<Stroke>()
+        var changed = false
+        _strokes.forEach { stroke ->
+            val hitRadius = radius + stroke.width / 2f
+            if (!stroke.bounds.intersects(eraserBounds.expanded(stroke.width / 2f))) {
+                updated += stroke
+                return@forEach
+            }
+            var segment = mutableListOf<Offset>()
+            stroke.points.forEachIndexed { index, point ->
+                val previous = stroke.points.getOrNull(index - 1)
+                val shouldErase = eraserPathHitsPoint(point, eraserPoints, hitRadius) ||
+                    (previous != null && eraserPathHitsSegment(previous, point, eraserPoints, hitRadius))
+
+                if (shouldErase) {
+                    changed = true
+                    if (segment.size > 1) {
+                        updated += stroke.copyWithPoints(segment)
+                    }
+                    segment = mutableListOf()
+                } else {
+                    segment += point
+                }
+            }
+            if (segment.size > 1) {
+                updated += stroke.copyWithPoints(segment)
+            }
+        }
+        if (!changed) return false
+        rememberUndoSnapshot()
+        _strokes.clear()
+        _strokes.addAll(updated)
+        notifyChanged()
+        return true
     }
 
     fun loadFromVectorJson(vectorJson: String?) {
         _strokes.clear()
+        undoSnapshots.clear()
         if (!vectorJson.isNullOrBlank()) {
             _strokes.addAll(parseStrokes(vectorJson))
         }
-        onChanged?.invoke()
+        notifyChanged()
     }
 
     fun toVectorJson(): String {
@@ -241,6 +353,24 @@ class HandwritingState {
             )
         }
         return root.toString()
+    }
+
+    fun isIdleFor(minIdleMillis: Long): Boolean {
+        val lastChanged = _lastChangedAtMillis
+        return lastChanged == 0L || SystemClock.uptimeMillis() - lastChanged >= minIdleMillis
+    }
+
+    private fun notifyChanged() {
+        _changeVersion += 1
+        _lastChangedAtMillis = SystemClock.uptimeMillis()
+        onChanged?.invoke()
+    }
+
+    private fun rememberUndoSnapshot() {
+        undoSnapshots += _strokes.map { it.deepCopy() }
+        if (undoSnapshots.size > MaxUndoSnapshots) {
+            undoSnapshots.removeAt(0)
+        }
     }
 
     private fun parseStrokes(vectorJson: String): List<Stroke> {
@@ -380,6 +510,17 @@ fun HandwritingCanvas(
         ) {
             foregroundContent()
         }
+
+        SkinAssetImage(
+            assetKey = "toolbarStrip",
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .fillMaxWidth()
+                .height(48.dp)
+                .zIndex(3f),
+            contentScale = ContentScale.FillBounds,
+            alpha = 0.9f
+        )
 
         Canvas(
             modifier = Modifier
@@ -698,6 +839,14 @@ private class InkDrawingView(context: Context) : View(context) {
         color = AndroidColor.rgb(55, 65, 81)
         strokeWidth = 2f
     }
+    private val eraserOverlayPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.STROKE
+        color = AndroidColor.argb(76, 96, 165, 250)
+        strokeCap = Paint.Cap.ROUND
+        strokeJoin = Paint.Join.ROUND
+    }
+    private val eraserPreviewPath = AndroidPath()
+    private val pendingEraserPoints = mutableListOf<Offset>()
     private var state: HandwritingState? = null
     private var activePointerId = MotionEvent.INVALID_POINTER_ID
     private var activeToolKind = ToolKind.Pen
@@ -719,6 +868,7 @@ private class InkDrawingView(context: Context) : View(context) {
                 fingerScrollPointerId = MotionEvent.INVALID_POINTER_ID
                 fingerScrollActive = false
                 eraserCenter = null
+                clearPendingEraser()
                 twoFingerScrollActive = false
             }
             postInvalidateOnAnimation()
@@ -749,6 +899,7 @@ private class InkDrawingView(context: Context) : View(context) {
         state?.onChanged = null
         state = newState
         newState.onChanged = invalidation
+        clearPendingEraser()
         postInvalidateOnAnimation()
     }
 
@@ -884,6 +1035,10 @@ private class InkDrawingView(context: Context) : View(context) {
             }
         }
         if (drawingEnabled && currentTool.kind == ToolKind.Eraser) {
+            if (pendingEraserPoints.isNotEmpty()) {
+                eraserOverlayPaint.strokeWidth = eraserRadiusPx * 2f
+                canvas.drawPath(eraserPreviewPath, eraserOverlayPaint)
+            }
             eraserCenter?.let { center ->
                 canvas.drawCircle(center.x, center.y, eraserRadiusPx, eraserPaint)
             }
@@ -903,7 +1058,7 @@ private class InkDrawingView(context: Context) : View(context) {
         val position = Offset(x, y)
         if (activeToolKind == ToolKind.Eraser) {
             eraserCenter = position
-            state.eraseAt(position, eraserRadiusPx)
+            recordEraserPoint(position, start)
             return
         }
         if (start) {
@@ -940,6 +1095,7 @@ private class InkDrawingView(context: Context) : View(context) {
         fingerScrollPointerId = MotionEvent.INVALID_POINTER_ID
         fingerScrollActive = false
         eraserCenter = null
+        clearPendingEraser()
         twoFingerScrollActive = true
         lastTwoFingerScrollY = event.averageFingerY()
         parent?.requestDisallowInterceptTouchEvent(true)
@@ -959,6 +1115,7 @@ private class InkDrawingView(context: Context) : View(context) {
         activePointerId = MotionEvent.INVALID_POINTER_ID
         activePointerStartedByFinger = false
         eraserCenter = null
+        clearPendingEraser()
         fingerScrollPointerId = event.getPointerId(pointerIndex)
         fingerScrollActive = true
         lastFingerScrollY = event.getY(pointerIndex)
@@ -1000,14 +1157,45 @@ private class InkDrawingView(context: Context) : View(context) {
     }
 
     private fun finishStroke() {
+        if (activeToolKind == ToolKind.Eraser && pendingEraserPoints.isNotEmpty()) {
+            state?.erasePath(pendingEraserPoints.toList(), eraserRadiusPx)
+        }
         activePointerId = MotionEvent.INVALID_POINTER_ID
         activePointerStartedByFinger = false
         fingerScrollPointerId = MotionEvent.INVALID_POINTER_ID
         fingerScrollActive = false
         eraserCenter = null
+        clearPendingEraser()
         twoFingerScrollActive = false
         parent?.requestDisallowInterceptTouchEvent(false)
         postInvalidateOnAnimation()
+    }
+
+    private fun recordEraserPoint(position: Offset, start: Boolean) {
+        if (start) {
+            pendingEraserPoints.clear()
+            eraserPreviewPath.reset()
+            pendingEraserPoints += position
+            eraserPreviewPath.moveTo(position.x, position.y)
+            postInvalidateOnAnimation()
+            return
+        }
+        val last = pendingEraserPoints.lastOrNull()
+        if (last != null && distanceSquared(last, position) < EraserSampleDistancePx * EraserSampleDistancePx) {
+            return
+        }
+        if (last == null) {
+            eraserPreviewPath.moveTo(position.x, position.y)
+        } else {
+            eraserPreviewPath.lineTo(position.x, position.y)
+        }
+        pendingEraserPoints += position
+        postInvalidateOnAnimation()
+    }
+
+    private fun clearPendingEraser() {
+        pendingEraserPoints.clear()
+        eraserPreviewPath.reset()
     }
 }
 
@@ -1059,6 +1247,8 @@ private fun MotionEvent.averageFingerY(
 private fun Color.toHexString(): String = "#%08X".format(toArgb())
 
 private const val MinInkPointDistancePx = 0.7f
+private const val EraserSampleDistancePx = 9f
+private const val MaxUndoSnapshots = 40
 
 private fun Float.nextPenWidth(): Float {
     val index = PenWidthOptions.indexOfFirst { it == this }
@@ -1079,11 +1269,83 @@ private fun distance(a: Offset, b: Offset): Float {
     return sqrt(dx * dx + dy * dy)
 }
 
+private fun distanceSquared(a: Offset, b: Offset): Float {
+    val dx = a.x - b.x
+    val dy = a.y - b.y
+    return dx * dx + dy * dy
+}
+
 private fun distanceToSegment(point: Offset, start: Offset, end: Offset): Float {
+    return sqrt(distanceToSegmentSquared(point, start, end))
+}
+
+private fun distanceToSegmentSquared(point: Offset, start: Offset, end: Offset): Float {
     val dx = end.x - start.x
     val dy = end.y - start.y
-    if (dx == 0f && dy == 0f) return distance(point, start)
+    if (dx == 0f && dy == 0f) return distanceSquared(point, start)
     val t = (((point.x - start.x) * dx + (point.y - start.y) * dy) / (dx * dx + dy * dy)).coerceIn(0f, 1f)
     val projection = Offset(start.x + t * dx, start.y + t * dy)
-    return distance(point, projection)
+    return distanceSquared(point, projection)
+}
+
+private fun eraserPathHitsPoint(point: Offset, eraserPoints: List<Offset>, radius: Float): Boolean {
+    val radiusSquared = radius * radius
+    if (eraserPoints.size == 1) {
+        return distanceSquared(point, eraserPoints.first()) <= radiusSquared
+    }
+    for (index in 1 until eraserPoints.size) {
+        if (distanceToSegmentSquared(point, eraserPoints[index - 1], eraserPoints[index]) <= radiusSquared) {
+            return true
+        }
+    }
+    return false
+}
+
+private fun eraserPathHitsSegment(start: Offset, end: Offset, eraserPoints: List<Offset>, radius: Float): Boolean {
+    val radiusSquared = radius * radius
+    if (eraserPoints.size == 1) {
+        return distanceToSegmentSquared(eraserPoints.first(), start, end) <= radiusSquared
+    }
+    for (index in 1 until eraserPoints.size) {
+        if (segmentDistanceSquared(start, end, eraserPoints[index - 1], eraserPoints[index]) <= radiusSquared) {
+            return true
+        }
+    }
+    return false
+}
+
+private fun segmentDistanceSquared(a: Offset, b: Offset, c: Offset, d: Offset): Float {
+    if (segmentsIntersect(a, b, c, d)) return 0f
+    return min(
+        min(distanceToSegmentSquared(a, c, d), distanceToSegmentSquared(b, c, d)),
+        min(distanceToSegmentSquared(c, a, b), distanceToSegmentSquared(d, a, b))
+    )
+}
+
+private fun segmentsIntersect(a: Offset, b: Offset, c: Offset, d: Offset): Boolean {
+    val abC = orientation(a, b, c)
+    val abD = orientation(a, b, d)
+    val cdA = orientation(c, d, a)
+    val cdB = orientation(c, d, b)
+    if (abC == 0f && c.isOnSegment(a, b)) return true
+    if (abD == 0f && d.isOnSegment(a, b)) return true
+    if (cdA == 0f && a.isOnSegment(c, d)) return true
+    if (cdB == 0f && b.isOnSegment(c, d)) return true
+    return (abC > 0f) != (abD > 0f) && (cdA > 0f) != (cdB > 0f)
+}
+
+private fun orientation(a: Offset, b: Offset, c: Offset): Float {
+    val value = (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x)
+    return when {
+        value > 0.0001f -> 1f
+        value < -0.0001f -> -1f
+        else -> 0f
+    }
+}
+
+private fun Offset.isOnSegment(start: Offset, end: Offset): Boolean {
+    return x >= min(start.x, end.x) - 0.0001f &&
+        x <= max(start.x, end.x) + 0.0001f &&
+        y >= min(start.y, end.y) - 0.0001f &&
+        y <= max(start.y, end.y) + 0.0001f
 }

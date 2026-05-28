@@ -353,10 +353,17 @@ private fun RoundToolButton(
     useSkinFrame: Boolean = false,
     onClick: () -> Unit
 ) {
+    val skin = LocalWorkbookSkin.current
+    val preferredSkinKey = when {
+        !useSkinFrame -> null
+        selected && skin?.assetPath("masterButtonActive") != null -> "masterButtonActive"
+        !selected && skin?.assetPath("masterButtonIdle") != null -> "masterButtonIdle"
+        else -> null
+    }
     Box(modifier = Modifier.size(48.dp)) {
-        if (useSkinFrame) {
+        if (preferredSkinKey != null) {
             SkinAssetImage(
-                assetKey = if (selected) "roundButtonActive" else "roundButtonIdle",
+                assetKey = preferredSkinKey,
                 modifier = Modifier.matchParentSize(),
                 contentScale = ContentScale.FillBounds
             )
@@ -368,9 +375,11 @@ private fun RoundToolButton(
             border = BorderStroke(1.5.dp, if (selected) MaterialTheme.colorScheme.primary else Color(0xFF7C7585)),
             contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp)
         ) {
-            Text(label, style = MaterialTheme.typography.labelSmall, maxLines = 1)
+            if (preferredSkinKey == null) {
+                Text(label, style = MaterialTheme.typography.labelSmall, maxLines = 1)
+            }
         }
-        badgeText?.let {
+        if (preferredSkinKey == null) badgeText?.let {
             Surface(
                 modifier = Modifier.align(Alignment.TopEnd),
                 shape = CircleShape,

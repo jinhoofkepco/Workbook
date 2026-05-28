@@ -3,6 +3,7 @@ package com.mathworkbook.app.core.viewer
 import android.content.Context
 import com.mathworkbook.app.core.database.AnswerFieldEntity
 import com.mathworkbook.app.core.database.AttemptInputLogEntity
+import com.mathworkbook.app.core.database.CompletedPracticeAttemptSummary
 import com.mathworkbook.app.core.database.MathDao
 import com.mathworkbook.app.core.database.PracticeAttemptEntity
 import com.mathworkbook.app.core.database.ProblemEntity
@@ -44,6 +45,7 @@ data class ViewerCurrentScreenSnapshot(
     val problem: ProblemEntity?,
     val currentAnswer: String,
     val solutionVectorJson: String,
+    val revision: Long,
     val updatedAt: Long
 )
 
@@ -149,9 +151,19 @@ class ViewerServer(
                 when {
                     path == "/" -> respondText(socket, 200, "text/html; charset=utf-8", viewerHtml(token))
                     path == "/api/status" -> respondJson(socket, statusJson())
-                    path == "/api/current-screen" -> respondJson(socket, currentScreenJson())
+                    path == "/api/current-screen" -> respondJson(socket, currentScreenJson(query["knownRevision"]?.toLongOrNull()))
                     path == "/api/current-screen-vector" -> respondCurrentScreenVector(socket)
-                    path == "/api/attempts" -> respondJson(socket, attemptsJson(query["limit"]?.toIntOrNull() ?: 40))
+                    path == "/api/attempts" -> respondJson(
+                        socket,
+                        attemptsJson(
+                            limit = query["limit"]?.toIntOrNull() ?: 40,
+                            sinceRevision = query["since"]?.toLongOrNull()
+                        )
+                    )
+                    path.startsWith("/api/attempts/") && path.endsWith("/thumbnail") -> {
+                        val attemptId = path.removePrefix("/api/attempts/").removeSuffix("/thumbnail").trim('/')
+                        respondAttemptThumbnail(socket, attemptId)
+                    }
                     path.startsWith("/api/attempts/") && path.endsWith("/solution-vector") -> {
                         val attemptId = path.removePrefix("/api/attempts/").removeSuffix("/solution-vector").trim('/')
                         respondAttemptSolution(socket, attemptId)
@@ -184,40 +196,79 @@ class ViewerServer(
             .put("updatedAt", System.currentTimeMillis())
     }
 
-    private fun attemptsJson(limit: Int): JSONObject = runBlocking {
-        val attempts = dao.getCompletedPracticeAttempts(limit.coerceIn(1, 80))
+    private fun attemptsJson(limit: Int, sinceRevision: Long?): JSONObject = runBlocking {
+        val attempts = dao.getCompletedPracticeAttemptSummaries(limit.coerceIn(1, 80))
+        val latestRevision = attempts.maxOfOrNull { it.eventAt } ?: 0L
+        if (sinceRevision != null && sinceRevision > 0L && latestRevision <= sinceRevision) {
+            return@runBlocking JSONObject()
+                .put("changed", false)
+                .put("latestRevision", latestRevision)
+                .put("items", JSONArray())
+        }
+        val attemptIds = attempts.map { it.attemptId }
+        val logsByAttempt = if (attemptIds.isEmpty()) {
+            emptyMap()
+        } else {
+            dao.getAttemptInputLogsForAttempts(attemptIds).groupBy { it.attemptId }
+        }
+        val problemIds = attempts.map { it.problemId }.distinct()
+        val fieldsByProblem = if (problemIds.isEmpty()) {
+            emptyMap()
+        } else {
+            dao.getAnswerFieldsForProblems(problemIds).groupBy { it.problemId }
+        }
         val items = JSONArray()
         attempts.forEach { attempt ->
-            val problem = dao.getProblem(attempt.problemId)
-            val workbook = dao.getWorkbook(attempt.workbookId)
-            val chapter = dao.getChapter(attempt.chapterId)
-            val logs = dao.getAttemptInputLogs(attempt.attemptId)
             items.put(
                 JSONObject()
                     .put("attemptId", attempt.attemptId)
                     .put("attemptNumber", attempt.attemptNumber)
                     .put("problemId", attempt.problemId)
-                    .put("problemOrder", problem?.orderIndex ?: 0)
-                    .put("problemTitle", problemTitle(problem))
-                    .put("workbookTitle", workbook?.title.orEmpty())
-                    .put("chapterTitle", chapter?.title.orEmpty())
+                    .put("problemOrder", attempt.problemOrder)
+                    .put("problemTitle", problemTitle(attempt))
+                    .put("workbookTitle", attempt.workbookTitle)
+                    .put("chapterTitle", attempt.chapterTitle)
                     .put("status", attempt.finalStatus.name)
                     .put("isCorrect", attempt.isCorrect)
-                    .put("submittedAt", attempt.submittedAt ?: attempt.startedAt)
-                    .put("submittedAnswer", formatSubmittedAnswer(logs, dao.getAnswerFields(attempt.problemId)))
+                    .put("submittedAt", attempt.eventAt)
+                    .put("revision", attempt.eventAt)
+                    .put("thumbnailUrl", thumbnailFileForSolution(attempt.solutionImagePath)?.takeIf { it.exists() }?.let {
+                        "/api/attempts/${attempt.attemptId}/thumbnail"
+                    } ?: JSONObject.NULL)
+                    .put(
+                        "submittedAnswer",
+                        formatSubmittedAnswer(
+                            logsByAttempt[attempt.attemptId].orEmpty(),
+                            fieldsByProblem[attempt.problemId].orEmpty()
+                        )
+                    )
             )
         }
-        JSONObject().put("items", items)
+        JSONObject()
+            .put("changed", true)
+            .put("latestRevision", latestRevision)
+            .put("items", items)
     }
 
-    private fun currentScreenJson(): JSONObject {
+    private fun currentScreenJson(knownRevision: Long?): JSONObject {
         val snapshot = currentScreenSnapshot
             ?: return JSONObject()
                 .put("available", false)
+                .put("changed", false)
+                .put("revision", 0L)
                 .put("message", "현재 풀이 중인 화면이 없습니다.")
+        if (knownRevision != null && knownRevision == snapshot.revision) {
+            return JSONObject()
+                .put("available", true)
+                .put("changed", false)
+                .put("revision", snapshot.revision)
+                .put("updatedAt", snapshot.updatedAt)
+        }
         val problem = snapshot.problem
         return JSONObject()
             .put("available", true)
+            .put("changed", true)
+            .put("revision", snapshot.revision)
             .put("updatedAt", snapshot.updatedAt)
             .put("workbookTitle", snapshot.workbookTitle)
             .put("chapterTitle", snapshot.chapterTitle)
@@ -294,7 +345,18 @@ class ViewerServer(
         if (file == null) {
             respondText(socket, 404, "text/plain; charset=utf-8", "solution not found")
         } else {
-            respondBytes(socket, 200, "application/json; charset=utf-8", file.readBytes())
+            respondFile(socket, 200, "application/json; charset=utf-8", file, "private, max-age=3600")
+        }
+    }
+
+    private fun respondAttemptThumbnail(socket: Socket, attemptId: String) = runBlocking {
+        val attempt = dao.getPracticeAttempt(attemptId) ?: error("attempt not found")
+        if (attempt.finalStatus == FinalStatus.IN_PROGRESS) error("attempt is not completed")
+        val file = thumbnailFileForSolution(attempt.solutionImagePath)?.takeIf { it.exists() }
+        if (file == null) {
+            respondText(socket, 404, "text/plain; charset=utf-8", "thumbnail not found")
+        } else {
+            respondFile(socket, 200, mimeFor(file), file, "private, max-age=3600")
         }
     }
 
@@ -304,7 +366,7 @@ class ViewerServer(
         if (file == null) {
             respondText(socket, 404, "text/plain; charset=utf-8", "image not found")
         } else {
-            respondBytes(socket, 200, mimeFor(file), file.readBytes())
+            respondFile(socket, 200, mimeFor(file), file, "public, max-age=86400")
         }
     }
 
@@ -337,6 +399,30 @@ class ViewerServer(
             output.write(body)
             output.flush()
         }
+    }
+
+    private fun respondFile(socket: Socket, status: Int, contentType: String, file: File, cacheControl: String) {
+        val reason = when (status) {
+            200 -> "OK"
+            403 -> "Forbidden"
+            404 -> "Not Found"
+            405 -> "Method Not Allowed"
+            else -> "Error"
+        }
+        val header = buildString {
+            append("HTTP/1.1 $status $reason\r\n")
+            append("Content-Type: $contentType\r\n")
+            append("Content-Length: ${file.length()}\r\n")
+            append("Cache-Control: $cacheControl\r\n")
+            append("Access-Control-Allow-Origin: *\r\n")
+            append("Connection: close\r\n\r\n")
+        }.toByteArray(Charsets.UTF_8)
+        val output = socket.getOutputStream()
+        output.write(header)
+        file.inputStream().use { input ->
+            input.copyTo(output, bufferSize = 16 * 1024)
+        }
+        output.flush()
     }
 
     private fun viewerHtml(token: String): String {
@@ -435,7 +521,175 @@ class ViewerServer(
         """.trimIndent()
     }
 
+    private fun viewerLeanHtml(token: String): String {
+        return """
+            <!doctype html>
+            <html lang="ko">
+            <head>
+              <meta charset="utf-8">
+              <meta name="viewport" content="width=device-width, initial-scale=1">
+              <title>Workbook Viewer</title>
+              <style>
+                *{box-sizing:border-box}
+                body{margin:0;font-family:system-ui,sans-serif;background:#f7f8fa;color:#111827}
+                header{position:sticky;top:0;z-index:10;background:#fffffff2;border-bottom:1px solid #e5e7eb;padding:12px 14px;display:flex;align-items:center;justify-content:space-between;gap:10px}
+                h1{font-size:18px;margin:0} h2{font-size:16px;margin:0 0 8px} small{color:#6b7280}
+                main{padding:12px;display:grid;gap:10px}.card{border:1px solid #e5e7eb;border-radius:10px;background:white;overflow:hidden}
+                button{border:1px solid #dbeafe;border-radius:8px;background:#eff6ff;color:#1d4ed8;padding:8px 10px;font-weight:700}
+                button:disabled{opacity:.5}.pad{padding:12px}.meta{font-size:12px;color:#6b7280}.ok{color:#15803d}.bad{color:#b91c1c}
+                .attemptButton{width:100%;border:0;border-radius:0;background:white;color:#111827;text-align:left;padding:10px}.attempt.open{border-color:#93c5fd;box-shadow:0 2px 10px #93c5fd33}
+                .row{display:flex;gap:10px;align-items:flex-start}.thumb{width:92px;height:58px;object-fit:cover;border:1px solid #e5e7eb;border-radius:6px;background:#fff;flex:0 0 auto}
+                .question{white-space:pre-wrap;margin:8px 0}.answer{display:inline-block;border:2px solid #2563eb;color:#2563eb;padding:5px 9px;border-radius:6px;font-weight:700;background:#eff6ff}
+                .detail{border-top:1px solid #e5e7eb;padding:12px;background:#fff}.stage{position:relative;width:100%;overflow:hidden;background:white;border:1px solid #e5e7eb;border-radius:8px;margin-top:8px}
+                .stage img,.stage canvas{position:absolute;display:block}.stage canvas{left:0;top:0;width:100%;height:100%;pointer-events:none}.empty{padding:18px;text-align:center;color:#6b7280}
+              </style>
+            </head>
+            <body>
+              <header>
+                <div><h1>Workbook Viewer</h1><small>요약은 가볍게, 필기는 필요할 때만 불러옵니다.</small></div>
+                <button id="refreshButton" onclick="refreshAll()">새로고침</button>
+              </header>
+              <main>
+                <section class="card"><div class="pad"><h2>현재 풀이 화면</h2><div id="current" class="empty">불러오는 중...</div></div></section>
+                <section id="list"></section>
+              </main>
+              <script>
+                const token = new URLSearchParams(location.search).get('token') || '$token';
+                const withToken = url => url + (url.includes('?') ? '&' : '?') + 'token=' + encodeURIComponent(token);
+                let currentRevision = 0;
+                let historyRevision = 0;
+                let refreshInFlight = false;
+                let lastRefreshAt = 0;
+                let openAttemptId = null;
+                const detailCache = new Map();
+                const cooldownMs = 10000;
+
+                async function refreshAll(){
+                  const now = Date.now();
+                  if(refreshInFlight || (lastRefreshAt && now - lastRefreshAt < cooldownMs)){ updateRefreshButton(); return; }
+                  refreshInFlight = true; lastRefreshAt = now; updateRefreshButton();
+                  try{ await loadCurrent(); await loadList(); } finally { refreshInFlight = false; updateRefreshButton(); }
+                }
+                function updateRefreshButton(){
+                  const b = document.getElementById('refreshButton'); if(!b) return;
+                  const remain = Math.ceil((cooldownMs - (Date.now() - lastRefreshAt)) / 1000);
+                  if(refreshInFlight){ b.disabled = true; b.textContent = '확인 중'; }
+                  else if(lastRefreshAt && remain > 0){ b.disabled = true; b.textContent = remain + '초'; setTimeout(updateRefreshButton, 250); }
+                  else{ b.disabled = false; b.textContent = '새로고침'; }
+                }
+                async function loadCurrent(){
+                  const box = document.getElementById('current');
+                  try{
+                    const data = await (await fetch(withToken('/api/current-screen?knownRevision=' + currentRevision))).json();
+                    if(!data.available){ box.className = 'empty'; box.innerHTML = esc(data.message || '현재 풀이 중인 화면이 없습니다.'); currentRevision = 0; return; }
+                    if(data.changed === false) return;
+                    currentRevision = Number(data.revision || 0);
+                    box.className = '';
+                    box.innerHTML = '<div><b>' + esc(data.workbookTitle) + '</b></div>' +
+                      '<div class="meta">' + esc(data.chapterTitle) + ' · ' + esc(data.positionLabel) + ' · ' + new Date(data.updatedAt).toLocaleTimeString() + '</div>' +
+                      '<div class="question">' + esc(data.problem.questionText || '(이미지 문제)') + '</div>' +
+                      (data.currentAnswer ? '<p><span class="answer">' + esc(data.currentAnswer) + '</span></p>' : '') +
+                      '<button onclick="loadCurrentDetail()">정확한 필기 보기</button><div id="currentStage" class="stage" style="display:none"></div>';
+                    window.currentDetail = data;
+                  }catch(e){ box.className = 'empty'; box.innerHTML = '현재 화면을 불러오지 못했습니다.'; }
+                }
+                async function loadCurrentDetail(){
+                  const data = window.currentDetail; if(!data) return;
+                  const stage = document.getElementById('currentStage'); if(stage) stage.style.display = 'block';
+                  const vector = await (await fetch(withToken(data.solutionVectorUrl))).json();
+                  drawWorksheet('currentStage', data.problemImageUrl ? withToken(data.problemImageUrl) : null, vector);
+                }
+                async function loadList(){
+                  const data = await (await fetch(withToken('/api/attempts?limit=50&since=' + historyRevision))).json();
+                  if(data.changed === false){ historyRevision = Number(data.latestRevision || historyRevision); return; }
+                  historyRevision = Number(data.latestRevision || historyRevision);
+                  renderList(data.items || []);
+                }
+                function renderList(items){
+                  const list = document.getElementById('list'); list.innerHTML = '';
+                  if(!items.length){ list.innerHTML = '<div class="card empty">완료된 풀이가 없습니다.</div>'; return; }
+                  items.forEach(item => {
+                    const id = String(item.attemptId || '');
+                    const card = document.createElement('article'); card.className = 'card attempt' + (openAttemptId === id ? ' open' : ''); card.id = 'attempt-' + safeId(id);
+                    const b = document.createElement('button'); b.className = 'attemptButton';
+                    const thumb = item.thumbnailUrl ? '<img class="thumb" src="' + withToken(item.thumbnailUrl) + '" loading="lazy">' : '';
+                    b.innerHTML = '<div class="row">' + thumb + '<div><b>' + esc(item.workbookTitle) + '</b><br>' + esc(item.chapterTitle) + ' · ' + esc(item.problemTitle) +
+                      '<div class="meta">' + new Date(item.submittedAt).toLocaleString() + ' · <span class="' + (item.isCorrect ? 'ok' : 'bad') + '">' + esc(item.status) + '</span> · ' +
+                      esc(item.submittedAnswer || '') + '</div></div></div>';
+                    b.onclick = () => toggleDetail(id);
+                    const d = document.createElement('div'); d.className = 'detail'; d.id = 'detail-' + safeId(id); d.style.display = openAttemptId === id ? 'block' : 'none';
+                    card.appendChild(b); card.appendChild(d); list.appendChild(card);
+                    if(openAttemptId === id) loadDetail(id);
+                  });
+                }
+                async function toggleDetail(id){
+                  openAttemptId = openAttemptId === id ? null : id;
+                  document.querySelectorAll('.attempt').forEach(el => el.classList.remove('open'));
+                  document.querySelectorAll('.detail').forEach(el => el.style.display = 'none');
+                  if(!openAttemptId) return;
+                  const card = document.getElementById('attempt-' + safeId(id));
+                  const detail = document.getElementById('detail-' + safeId(id));
+                  if(card) card.classList.add('open');
+                  if(detail) detail.style.display = 'block';
+                  await loadList();
+                  if(openAttemptId){ await loadDetail(id); const el = document.getElementById('attempt-' + safeId(id)); if(el) el.scrollIntoView({block:'nearest'}); }
+                }
+                async function loadDetail(id){
+                  const box = document.getElementById('detail-' + safeId(id)); if(!box) return;
+                  if(detailCache.has(id)){
+                    const cached = detailCache.get(id);
+                    box.innerHTML = cached.html;
+                    box.style.display = 'block';
+                    drawWorksheet(cached.stageId, cached.imageUrl, cached.vector);
+                    return;
+                  }
+                  box.style.display = 'block'; box.innerHTML = '<div class="meta">정확한 필기를 불러오는 중...</div>';
+                  const d = await (await fetch(withToken('/api/attempts/' + encodeURIComponent(id)))).json();
+                  const stageId = 'stage-' + safeId(id);
+                  const html = '<h2>' + esc(d.workbookTitle) + '</h2><div class="meta">' + esc(d.chapterTitle) + ' · ' + new Date(d.submittedAt).toLocaleString() + '</div>' +
+                    '<div class="question">' + esc(d.problem.questionText || '(이미지 문제)') + '</div><div id="' + stageId + '" class="stage"></div>' +
+                    '<p><span class="answer">' + esc(d.submittedAnswer || '') + '</span></p>' + (d.reviewerComment ? '<p><b>마스터 노트</b><br>' + esc(d.reviewerComment) + '</p>' : '');
+                  box.innerHTML = html;
+                  const vector = await (await fetch(withToken(d.solutionVectorUrl))).json();
+                  const imageUrl = d.problemImageUrl ? withToken(d.problemImageUrl) : null;
+                  drawWorksheet(stageId, imageUrl, vector);
+                  detailCache.set(id, {html, stageId, imageUrl, vector});
+                }
+                function drawWorksheet(stageId, imageUrl, data){
+                  const stage = document.getElementById(stageId); if(!stage) return;
+                  const strokes = data.strokes || []; const bounds = data.imageBounds || null; const box = worksheetCrop(data, strokes, bounds);
+                  stage.style.aspectRatio = box.width + ' / ' + box.height; stage.innerHTML = '';
+                  if(imageUrl){ const img = document.createElement('img'); img.src = imageUrl;
+                    if(bounds){ img.style.left = pct(bounds.left - box.left, box.width); img.style.top = pct(bounds.top - box.top, box.height); img.style.width = pct(bounds.width, box.width); img.style.height = pct(bounds.height, box.height); }
+                    else{ img.style.left='0'; img.style.top='0'; img.style.width='100%'; img.style.height='100%'; } stage.appendChild(img); }
+                  const canvas = document.createElement('canvas'); canvas.width = Math.max(1, Math.round(box.width)); canvas.height = Math.max(1, Math.round(box.height)); stage.appendChild(canvas); drawStrokes(canvas, strokes, box.left, box.top);
+                }
+                function worksheetCrop(data, strokes, bounds){
+                  let minX = bounds ? bounds.left : 0, minY = bounds ? bounds.top : 0, maxX = bounds ? bounds.left + bounds.width : Number(data.contentWidth || 320), maxY = bounds ? bounds.top + bounds.height : Number(data.contentHeight || 260);
+                  strokes.forEach(s => (s.points || []).forEach(p => { minX = Math.min(minX, Number(p.x || 0)); minY = Math.min(minY, Number(p.y || 0)); maxX = Math.max(maxX, Number(p.x || 0)); maxY = Math.max(maxY, Number(p.y || 0)); }));
+                  const margin = 24; minX = Math.max(0, minX - margin); minY = Math.max(0, minY - margin); maxX += margin; maxY += margin;
+                  return {left:minX, top:minY, width:Math.max(240, maxX - minX), height:Math.max(160, maxY - minY)};
+                }
+                function drawStrokes(canvas, strokes, offsetX, offsetY){
+                  const ctx = canvas.getContext('2d'); ctx.clearRect(0,0,canvas.width,canvas.height);
+                  strokes.forEach(s => { const pts = s.points || []; if(pts.length < 1) return; ctx.strokeStyle = cssColor(s.color || '#111827'); ctx.fillStyle = ctx.strokeStyle; ctx.lineWidth = Number(s.width || 5); ctx.lineCap = (s.kind === 'Highlighter') ? 'butt' : 'round'; ctx.lineJoin = (s.kind === 'Highlighter') ? 'bevel' : 'round';
+                    if(pts.length === 1){ ctx.beginPath(); ctx.arc(pts[0].x - offsetX, pts[0].y - offsetY, ctx.lineWidth / 2, 0, Math.PI * 2); ctx.fill(); return; }
+                    ctx.beginPath(); ctx.moveTo(pts[0].x - offsetX, pts[0].y - offsetY); pts.slice(1).forEach(p => ctx.lineTo(p.x - offsetX, p.y - offsetY)); ctx.stroke(); });
+                }
+                function pct(value, total){return (value / Math.max(1, total) * 100) + '%';}
+                function cssColor(value){ const raw = String(value || ''); if(/^#[0-9a-fA-F]{8}${'$'}/.test(raw)){ const a = parseInt(raw.slice(1,3),16)/255; const r=parseInt(raw.slice(3,5),16); const g=parseInt(raw.slice(5,7),16); const b=parseInt(raw.slice(7,9),16); return 'rgba(' + r + ',' + g + ',' + b + ',' + a.toFixed(3) + ')'; } return raw; }
+                function esc(v){return String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+                function safeId(v){return String(v ?? '').replace(/[^a-zA-Z0-9_-]/g, '_');}
+                refreshAll();
+              </script>
+            </body>
+            </html>
+        """.trimIndent()
+    }
+
     private fun viewerGuardedHtml(token: String): String {
+        val lean = viewerLeanHtml(token)
+        if (lean.isNotBlank()) return lean
         return """
             <!doctype html>
             <html lang="ko">
@@ -1403,6 +1657,21 @@ class ViewerServer(
             ?.take(42)
             ?.ifBlank { null }
             ?: "문제 ${problem?.orderIndex ?: ""}".trim()
+    }
+
+    private fun problemTitle(attempt: CompletedPracticeAttemptSummary): String {
+        return attempt.problemQuestionText
+            .replace(Regex("\\s+"), " ")
+            .take(42)
+            .ifBlank { "문제 ${attempt.problemOrder}".trim() }
+    }
+
+    private fun thumbnailFileForSolution(solutionPath: String?): File? {
+        val vectorFile = solutionPath?.let(::File) ?: return null
+        val thumbName = vectorFile.name
+            .removeSuffix("-solution-vector.json")
+            .removeSuffix(".json") + "-solution-thumb.jpg"
+        return File(vectorFile.parentFile, thumbName)
     }
 
     private fun formatSubmittedAnswer(logs: List<AttemptInputLogEntity>, fields: List<AnswerFieldEntity>): String {

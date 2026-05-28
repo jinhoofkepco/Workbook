@@ -949,14 +949,6 @@ private fun ImportDialog(
         title = { Text("외부 파일 가져오기") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                SkinAssetImage(
-                    assetKey = "importDropzone",
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(140.dp),
-                    contentScale = ContentScale.Fit,
-                    alpha = 0.9f
-                )
                 Text("문제집 ZIP(workbook.json)과 스킨 ZIP(skin.json 또는 규격 PNG)을 자동으로 구분합니다.")
                 Text("스킨 ZIP은 가져오면 바로 활성 스킨으로 적용됩니다.")
             }

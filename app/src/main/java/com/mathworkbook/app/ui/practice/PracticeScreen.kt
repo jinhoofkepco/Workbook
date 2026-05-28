@@ -43,6 +43,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -96,6 +97,8 @@ private enum class AnswerInputMode {
 
 // Switch this to FixedBottomCustomKeypad to restore the previous bottom answer area.
 private val answerInputMode = AnswerInputMode.WorksheetInline
+private const val ViewerPublishIntervalMillis = 15_000L
+private const val ViewerMinIdleMillis = 4_000L
 
 @Composable
 fun PracticeScreen(
@@ -112,6 +115,8 @@ fun PracticeScreen(
     modifier: Modifier = Modifier
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val latestState by rememberUpdatedState(state)
+    val latestMasterMode by rememberUpdatedState(isMasterMode)
     val handwritingState = rememberHandwritingState()
     val focusManager = LocalFocusManager.current
     var imageAdjustmentMode by remember { mutableStateOf(WorksheetImageAdjustmentMode.None) }
@@ -139,6 +144,10 @@ fun PracticeScreen(
         }
     }
 
+    LaunchedEffect(isMasterMode, state.currentProblem?.problemId) {
+        viewModel.clearViewerCurrentScreen()
+    }
+
     LaunchedEffect(isMasterMode, state.currentProblem?.problemId, state.masterNoteVectorJson) {
         if (isMasterMode) {
             handwritingState.loadFromVectorJson(state.masterNoteVectorJson)
@@ -161,21 +170,38 @@ fun PracticeScreen(
         }
     }
 
-    LaunchedEffect(
-        isMasterMode,
-        state.currentProblem?.problemId,
-        state.currentProblem?.imageCropRectJson,
-        state.inputByField,
-        state.selectedChoiceIds
-    ) {
-        if (isMasterMode || state.currentProblem == null) {
-            viewModel.clearViewerCurrentScreen()
-            return@LaunchedEffect
-        }
+    LaunchedEffect(Unit) {
+        var lastPublishedKey = ""
         while (true) {
-            delay(1_000L)
-            if (viewModel.isViewerRunning()) {
-                viewModel.publishViewerCurrentScreen(handwritingState.toVectorJson())
+            delay(ViewerPublishIntervalMillis)
+            val current = latestState
+            val problem = current.currentProblem
+            if (latestMasterMode || problem == null) {
+                viewModel.clearViewerCurrentScreen()
+                lastPublishedKey = ""
+                continue
+            }
+            if (!viewModel.isViewerRunning() || current.submitting) {
+                continue
+            }
+            if (!handwritingState.isIdleFor(ViewerMinIdleMillis)) {
+                continue
+            }
+            val publishKey = buildString {
+                append(problem.problemId)
+                append('|')
+                append(current.inputByField.toSortedMap())
+                append('|')
+                append(current.selectedChoiceIds.sorted())
+                append('|')
+                append(handwritingState.changeVersion)
+            }
+            if (publishKey != lastPublishedKey) {
+                viewModel.publishViewerCurrentScreen(
+                    solutionVectorJson = handwritingState.toVectorJson(),
+                    snapshotRevision = System.currentTimeMillis()
+                )
+                lastPublishedKey = publishKey
             }
         }
     }
@@ -675,7 +701,9 @@ private fun ToolbarNavButton(
         ),
         contentPadding = PaddingValues(0.dp)
     ) {
-        Text(text, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+        if (!hasSkinArrow) {
+            Text(text, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+        }
     }
     }
 }
@@ -710,7 +738,9 @@ private fun ToolbarHintButton(
             ),
             contentPadding = PaddingValues(0.dp)
         ) {
-            Text("?", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+            if (!hasSkinButton) {
+                Text("?", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+            }
         }
     }
 }
@@ -1533,8 +1563,13 @@ private fun SubmitGraphicButton(
     submitting: Boolean,
     onSubmit: () -> Unit
 ) {
-    val hasSkinButton = LocalWorkbookSkin.current?.assetPath("submitButton") != null
-    if (hasSkinButton) {
+    val skin = LocalWorkbookSkin.current
+    val assetKey = when {
+        submitting && skin?.assetPath("gradingButton") != null -> "gradingButton"
+        !submitting && skin?.assetPath("submitButton") != null -> "submitButton"
+        else -> null
+    }
+    if (assetKey != null) {
         Box(
             modifier = Modifier
                 .size(width = 124.dp, height = 58.dp)
@@ -1542,7 +1577,7 @@ private fun SubmitGraphicButton(
             contentAlignment = Alignment.Center
         ) {
             SkinAssetImage(
-                assetKey = "submitButton",
+                assetKey = assetKey,
                 modifier = Modifier.matchParentSize(),
                 contentScale = ContentScale.FillBounds,
                 alpha = 1f
@@ -1558,9 +1593,7 @@ private fun SubmitGraphicButton(
                     disabledContentColor = Color(0xFF6B7280)
                 ),
                 contentPadding = PaddingValues(0.dp)
-            ) {
-                Text(if (submitting) "채점중" else "제출", fontWeight = FontWeight.Bold)
-            }
+            ) {}
         }
     } else {
         Button(

@@ -215,8 +215,6 @@ class SkinManager(private val context: Context) {
             "dashboardBackground" to "dashboard_bg_1600x2560.png",
             "bookCoverBase" to "book_cover_base_512x700.png",
             "bookCoverSpine" to "book_cover_spine_96x700.png",
-            "bookCoverShadow" to "book_cover_shadow_512x700.png",
-            "bookShelfBand" to "book_shelf_band_1600x260.png",
             "dashboardPageFrame" to "dashboard_page_frame_1600x2400.png",
             "dashboardTitleBanner" to "dashboard_title_banner_1200x220.png",
             "dashboardTitleFrame" to "dashboard_title_frame_1000x180.png",
@@ -224,19 +222,15 @@ class SkinManager(private val context: Context) {
             "problemPaperBackground" to "problem_paper_bg_1600x2560.png",
             "toolbarStrip" to "toolbar_strip_1600x96.png",
             "problemHeaderPill" to "problem_header_pill_900x96.png",
+            "masterButtonIdle" to "master_button_idle_128x128.png",
+            "masterButtonActive" to "master_button_active_128x128.png",
             "navArrowPrevious" to "nav_arrow_previous_160x128.png",
             "navArrowNext" to "nav_arrow_next_160x128.png",
             "hintButton" to "hint_button_128x128.png",
             "submitButton" to "submit_button_320x128.png",
-            "bottomMenuPlate" to "bottom_menu_plate_1600x160.png",
-            "roundButtonIdle" to "round_btn_idle_128x128.png",
-            "roundButtonActive" to "round_btn_active_128x128.png",
-            "masterActionGroup" to "master_action_group_900x96.png",
+            "gradingButton" to "grading_button_320x128.png",
             "answerStampBlue" to "answer_stamp_blue_512x180.png",
-            "answerWrongSlash" to "answer_wrong_slash_512x180.png",
-            "reviewNoteCard" to "review_note_card_960x360.png",
-            "importDropzone" to "import_dropzone_1200x520.png",
-            "logPopupBackground" to "log_popup_bg_1200x1000.png"
+            "answerWrongSlash" to "answer_wrong_slash_512x180.png"
         )
     }
 }
