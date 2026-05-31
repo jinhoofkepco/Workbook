@@ -68,6 +68,7 @@ import com.mathworkbook.app.core.database.PracticeAttemptEntity
 import com.mathworkbook.app.core.database.WorkbookEntity
 import com.mathworkbook.app.core.domain.FinalStatus
 import com.mathworkbook.app.core.domain.AnswerFieldType
+import com.mathworkbook.app.core.domain.AnswerType
 import com.mathworkbook.app.core.domain.ProblemType
 import com.mathworkbook.app.ui.components.SolutionVectorPreview
 import com.mathworkbook.app.ui.components.SolutionVectorOverlay
@@ -1551,10 +1552,45 @@ private fun AnswerInputControls(
                 }
             }
         }
+        if (shouldShowFractionQuickButtons(state)) {
+            FractionQuickButtons(
+                onSpace = { viewModel.appendToActiveField(" ") },
+                onFraction = { viewModel.appendToActiveField("/") }
+            )
+        }
         SubmitGraphicButton(
             submitting = state.submitting,
             onSubmit = onSubmit
         )
+    }
+}
+
+@Composable
+private fun FractionQuickButtons(
+    onSpace: () -> Unit,
+    onFraction: () -> Unit
+) {
+    Column(
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier.height(56.dp)
+    ) {
+        OutlinedButton(
+            onClick = onSpace,
+            modifier = Modifier.size(width = 48.dp, height = 26.dp),
+            shape = RoundedCornerShape(8.dp),
+            contentPadding = PaddingValues(0.dp)
+        ) {
+            Text("공백", fontSize = 10.sp, maxLines = 1)
+        }
+        OutlinedButton(
+            onClick = onFraction,
+            modifier = Modifier.size(width = 48.dp, height = 26.dp),
+            shape = RoundedCornerShape(8.dp),
+            contentPadding = PaddingValues(0.dp)
+        ) {
+            Text("/", fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+        }
     }
 }
 
@@ -1678,6 +1714,21 @@ private fun keyboardOptionsFor(fieldType: AnswerFieldType): KeyboardOptions {
 
 private fun AnswerFieldType.isWorksheetOnlyField(): Boolean {
     return this == AnswerFieldType.DRAWING || this == AnswerFieldType.TABLE
+}
+
+private fun shouldShowFractionQuickButtons(state: PracticeUiState): Boolean {
+    if (state.currentProblem?.problemType == ProblemType.MULTIPLE_CHOICE) return false
+    val hasEditableAnswerField = state.fields
+        .filterNot { it.fieldType.isWorksheetOnlyField() }
+        .any { !it.isDisabledForInput() }
+    if (!hasEditableAnswerField) return false
+    return state.fields.any { it.fieldType == AnswerFieldType.FRACTION } ||
+        state.rules.any { rule ->
+            rule.answerType == AnswerType.FRACTION ||
+                rule.correctAnswerRaw.contains("/") ||
+                rule.normalizedAnswer.contains("/") ||
+                rule.acceptedAnswersJson.orEmpty().contains("/")
+        }
 }
 
 private data class InlineChoiceOption(

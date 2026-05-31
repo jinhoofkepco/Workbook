@@ -10,6 +10,14 @@
 5. 그림 풀이 문제는 전부 `MANUAL_ONLY`와 `manualGradingRequired: true`로 둔다.
 6. 글자가 확실하지 않으면 절대 고치지 말고 `NEEDS_REVIEW`를 넣는다.
 
+답 입력 UI 규칙:
+- 단위는 학생이 직접 쓰게 하지 말고 `answerFields[].displaySuffix` 또는 `suffix`에 넣는다. 예: 답이 `200명`이면 정답값은 `200`, suffix는 `명`.
+- 대분수는 가능하면 한 칸 TEXT로 받지 말고 `자연수`, `분자`, `분모` 숫자칸으로 나눈다. 예: `3 2/7`은 `3`, `2`, `7`.
+- 보기에서 고르는 문제는 직접 타이핑시키지 말고 `choiceOptions`를 넣는다. 모두 고르기 문제는 `choiceMultiSelect: true`를 넣는다.
+- 그래프 작성, 표 완성, 작도, 식 만들기처럼 노트에 직접 써야 하는 문제는 자동채점하지 않는다. `gradingPolicy.mode`는 `manual_review`, `skipOnSubmit`은 `true`로 둔다.
+- 직접채점 문제라도 사용자가 무엇을 해야 하는지 알 수 있게 비활성 답칸을 남긴다. 예: `displayValue: "노트에 그래프 작성"`, `disabled: true`, `readOnly: true`.
+- 한 정답에 여러 표기가 가능하면 `acceptedAnswersJson`을 넣고, 동치분수는 `allowEquivalentFraction: true`를 넣는다.
+
 출력은 짧게:
 - `workbook.json`에 넣을 `problems` 배열만 출력한다.
 - 설명 문장은 쓰지 않는다.
