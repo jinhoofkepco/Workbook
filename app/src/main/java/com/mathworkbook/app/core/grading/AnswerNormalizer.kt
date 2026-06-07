@@ -3,6 +3,7 @@ package com.mathworkbook.app.core.grading
 import com.mathworkbook.app.core.database.AnswerRuleEntity
 import com.mathworkbook.app.core.domain.AnswerType
 import java.math.BigDecimal
+import java.math.MathContext
 
 data class NormalizedAnswer(
     val canonical: String,
@@ -12,15 +13,23 @@ data class NormalizedAnswer(
 
 class AnswerNormalizer {
     fun normalize(raw: String, rule: AnswerRuleEntity): NormalizedAnswer {
-        val cleaned = raw
+        val unitStripped = raw
             .trim()
             .replace(",", "")
             .replace("−", "-")
             .let { removeUnitSuffixes(it, rule.answerType) }
             .trim()
+        val fractionCandidate = unitStripped.collapseWhitespace()
+        val cleaned = normalizeWhitespace(unitStripped, rule.answerType)
 
-        val fraction = Fraction.parse(cleaned)
-        val number = cleaned.toBigDecimalOrNull()
+        val parsedFraction = Fraction.parse(fractionCandidate) ?: Fraction.parse(cleaned)
+        val parsedNumber = cleaned.toBigDecimalOrNull()
+        val fraction = parsedFraction ?: if (rule.answerType == AnswerType.FRACTION) {
+            parsedNumber?.toFractionOrNull()
+        } else {
+            null
+        }
+        val number = parsedNumber ?: parsedFraction?.toBigDecimalOrNull()
         val canonical = when {
             fraction != null -> fraction.simplified.toString()
             number != null -> number.stripTrailingZeros().toPlainString()
@@ -50,5 +59,61 @@ class AnswerNormalizer {
         } else {
             strippedByType
         }
+    }
+
+    private fun normalizeWhitespace(value: String, answerType: AnswerType): String {
+        return when {
+            answerType == AnswerType.FRACTION -> value.collapseWhitespace()
+            answerType.isWhitespaceInsensitiveNumber() -> value.removeWhitespace()
+            else -> value.collapseWhitespace()
+        }
+    }
+
+    private fun AnswerType.isWhitespaceInsensitiveNumber(): Boolean {
+        return when (this) {
+            AnswerType.INTEGER,
+            AnswerType.DECIMAL,
+            AnswerType.PERCENT,
+            AnswerType.ANGLE,
+            AnswerType.MONEY,
+            AnswerType.UNIT_VALUE -> true
+            else -> false
+        }
+    }
+
+    private fun String.collapseWhitespace(): String {
+        return replace(Regex("""\s+"""), " ")
+    }
+
+    private fun String.removeWhitespace(): String {
+        return replace(Regex("""\s+"""), "")
+    }
+
+    private fun Fraction.toBigDecimalOrNull(): BigDecimal? {
+        return runCatching {
+            BigDecimal.valueOf(numerator).divide(BigDecimal.valueOf(denominator), MathContext.DECIMAL128)
+        }.getOrNull()
+    }
+
+    private fun BigDecimal.toFractionOrNull(): Fraction? {
+        return runCatching {
+            val stripped = stripTrailingZeros()
+            val scale = stripped.scale()
+            if (scale <= 0) {
+                Fraction(stripped.longValueExact(), 1)
+            } else {
+                val denominator = 10L.pow(scale)
+                val numerator = stripped.movePointRight(scale).longValueExact()
+                Fraction(numerator, denominator)
+            }
+        }.getOrNull()
+    }
+
+    private fun Long.pow(exponent: Int): Long {
+        var result = 1L
+        repeat(exponent) {
+            result = Math.multiplyExact(result, this)
+        }
+        return result
     }
 }

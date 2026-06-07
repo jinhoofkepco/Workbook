@@ -7,7 +7,11 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import com.mathworkbook.app.core.AppContainer
+import com.mathworkbook.app.core.backup.BackupExporter
 import com.mathworkbook.app.ui.MathWorkbookApp
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
     private val rehideNavigationRunnable = Runnable { hideNavigationBar() }
@@ -17,6 +21,13 @@ class MainActivity : ComponentActivity() {
         keepNavigationBarHiddenAfterAccidentalReveal()
         hideNavigationBar()
         val container = AppContainer(applicationContext)
+        lifecycleScope.launch(Dispatchers.IO) {
+            BackupExporter.runDailyBackupIfNeeded(
+                context = applicationContext,
+                appPreferences = container.appPreferences,
+                database = container.database
+            )
+        }
         setContent {
             MathWorkbookApp(container)
         }

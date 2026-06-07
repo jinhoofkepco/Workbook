@@ -9,6 +9,8 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.defaultMinSize
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
@@ -98,8 +100,9 @@ private enum class AnswerInputMode {
 
 // Switch this to FixedBottomCustomKeypad to restore the previous bottom answer area.
 private val answerInputMode = AnswerInputMode.WorksheetInline
-private const val ViewerPublishIntervalMillis = 15_000L
-private const val ViewerMinIdleMillis = 4_000L
+private const val ViewerPublishIntervalMillis = 1_500L
+private const val ViewerProblemStableMillis = 1_500L
+private const val ViewerMinIdleMillis = 1_500L
 
 @Composable
 fun PracticeScreen(
@@ -123,6 +126,10 @@ fun PracticeScreen(
     var imageAdjustmentMode by remember { mutableStateOf(WorksheetImageAdjustmentMode.None) }
     var imageTransformDraft by remember { mutableStateOf(WorksheetImageTransform()) }
     var lastStudentInkProblemId by remember { mutableStateOf<String?>(null) }
+    var stashedStudentInk by remember { mutableStateOf<Pair<String, String>?>(null) }
+    var previousMasterMode by remember { mutableStateOf(isMasterMode) }
+    var viewerProblemOpenedAtMillis by remember { mutableStateOf(System.currentTimeMillis()) }
+    val latestViewerProblemOpenedAtMillis by rememberUpdatedState(viewerProblemOpenedAtMillis)
 
     LaunchedEffect(isMasterMode, initialWorkbookId, initialChapterId, initialProblemId, initialAttemptId) {
         viewModel.setMasterMode(
@@ -140,6 +147,7 @@ fun PracticeScreen(
     }
 
     LaunchedEffect(state.currentProblem?.problemId) {
+        viewerProblemOpenedAtMillis = System.currentTimeMillis()
         state.currentProblem?.let { problem ->
             onProblemLocationChanged(problem.workbookId, problem.chapterId, problem.problemId)
         }
@@ -150,13 +158,26 @@ fun PracticeScreen(
     }
 
     LaunchedEffect(isMasterMode, state.currentProblem?.problemId, state.masterNoteVectorJson) {
+        val problemId = state.currentProblem?.problemId
         if (isMasterMode) {
+            if (!previousMasterMode && problemId != null) {
+                stashedStudentInk = problemId to handwritingState.toVectorJson()
+            }
             handwritingState.loadFromVectorJson(state.masterNoteVectorJson)
             lastStudentInkProblemId = null
-        } else if (state.currentProblem?.problemId != null && lastStudentInkProblemId != state.currentProblem?.problemId) {
-            handwritingState.clear()
-            lastStudentInkProblemId = state.currentProblem?.problemId
+        } else if (problemId != null) {
+            val stash = stashedStudentInk
+            if (previousMasterMode && stash?.first == problemId) {
+                handwritingState.loadFromVectorJson(stash.second)
+                stashedStudentInk = null
+                lastStudentInkProblemId = problemId
+            } else if (lastStudentInkProblemId != problemId) {
+                handwritingState.clear()
+                stashedStudentInk = null
+                lastStudentInkProblemId = problemId
+            }
         }
+        previousMasterMode = isMasterMode
     }
 
     LaunchedEffect(state.currentProblem?.problemId, state.currentProblem?.imageCropRectJson) {
@@ -173,8 +194,16 @@ fun PracticeScreen(
 
     LaunchedEffect(Unit) {
         var lastPublishedKey = ""
+        var lastSeenInkVersion = handwritingState.changeVersion
+        var lastInkChangedAtMillis = 0L
         while (true) {
             delay(ViewerPublishIntervalMillis)
+            val now = System.currentTimeMillis()
+            val inkVersion = handwritingState.changeVersion
+            if (inkVersion != lastSeenInkVersion) {
+                lastSeenInkVersion = inkVersion
+                lastInkChangedAtMillis = now
+            }
             val current = latestState
             val problem = current.currentProblem
             if (latestMasterMode || problem == null) {
@@ -185,7 +214,10 @@ fun PracticeScreen(
             if (!viewModel.isViewerRunning() || current.submitting) {
                 continue
             }
-            if (!handwritingState.isIdleFor(ViewerMinIdleMillis)) {
+            if (now - latestViewerProblemOpenedAtMillis < ViewerProblemStableMillis) {
+                continue
+            }
+            if (lastInkChangedAtMillis > 0L && now - lastInkChangedAtMillis < ViewerMinIdleMillis) {
                 continue
             }
             val publishKey = buildString {
@@ -195,12 +227,12 @@ fun PracticeScreen(
                 append('|')
                 append(current.selectedChoiceIds.sorted())
                 append('|')
-                append(handwritingState.changeVersion)
+                append(inkVersion)
             }
             if (publishKey != lastPublishedKey) {
                 viewModel.publishViewerCurrentScreen(
                     solutionVectorJson = handwritingState.toVectorJson(),
-                    snapshotRevision = System.currentTimeMillis()
+                    snapshotRevision = now
                 )
                 lastPublishedKey = publishKey
             }
@@ -1643,6 +1675,7 @@ private fun SubmitGraphicButton(
 }
 
 @Composable
+@OptIn(ExperimentalLayoutApi::class)
 private fun InlineChoiceSelector(
     options: List<InlineChoiceOption>,
     currentValue: String,
@@ -1650,7 +1683,11 @@ private fun InlineChoiceSelector(
 ) {
     if (options.isEmpty()) return
     val selectedKeys = selectedInlineChoiceKeys(currentValue, options)
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+    FlowRow(
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+        modifier = Modifier.fillMaxWidth()
+    ) {
         options.forEach { option ->
             val selected = selectedKeys.contains(option.key)
             OutlinedButton(
@@ -1795,12 +1832,15 @@ private fun toggleInlineChoiceAnswer(
     options: List<InlineChoiceOption>,
     option: InlineChoiceOption
 ): String {
-    val selected = selectedInlineChoiceKeys(currentValue, options).toMutableSet()
-    if (!selected.add(option.key)) {
-        selected.remove(option.key)
+    val selected = orderedSelectedInlineChoiceKeys(currentValue, options).toMutableList()
+    if (selected.contains(option.key)) {
+        selected.removeAll { it == option.key }
+    } else {
+        selected.add(option.key)
     }
-    return options
-        .filter { selected.contains(it.key) }
+    val optionsByKey = options.associateBy { it.key }
+    return selected
+        .mapNotNull { optionsByKey[it] }
         .joinToString(", ") { it.value }
 }
 
@@ -1808,11 +1848,19 @@ private fun selectedInlineChoiceKeys(
     currentValue: String,
     options: List<InlineChoiceOption>
 ): Set<String> {
-    val tokens = currentValue
+    return orderedSelectedInlineChoiceKeys(currentValue, options).toSet()
+}
+
+private fun orderedSelectedInlineChoiceKeys(
+    currentValue: String,
+    options: List<InlineChoiceOption>
+): List<String> {
+    val optionKeys = options.map { it.key }.toSet()
+    val seen = mutableSetOf<String>()
+    return currentValue
         .split(",", " ", "/", "·")
         .mapNotNull { token -> canonicalChoiceToken(token) ?: token.trim().takeIf { it.isNotBlank() } }
-        .toSet()
-    return options.filter { tokens.contains(it.key) }.mapTo(mutableSetOf()) { it.key }
+        .filter { key -> optionKeys.contains(key) && seen.add(key) }
 }
 
 private fun canonicalChoiceToken(token: String): String? {

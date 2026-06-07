@@ -1,6 +1,7 @@
 package com.mathworkbook.app.ui.components
 
 import android.content.Context
+import android.graphics.Bitmap
 import android.graphics.Canvas as AndroidCanvas
 import android.graphics.Color as AndroidColor
 import android.graphics.Paint
@@ -59,9 +60,14 @@ import androidx.compose.ui.zIndex
 import com.mathworkbook.app.ui.skin.SkinAssetImage
 import org.json.JSONArray
 import org.json.JSONObject
+import kotlin.math.PI
+import kotlin.math.abs
+import kotlin.math.atan2
+import kotlin.math.cos
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
+import kotlin.math.sin
 import kotlin.math.sqrt
 
 internal data class StrokeBounds(
@@ -146,6 +152,13 @@ class Stroke(
         return Stroke(points = points, color = color, width = width, kind = kind)
     }
 
+    fun replacePoints(nextPoints: List<Offset>) {
+        points.clear()
+        points.addAll(nextPoints)
+        rebuildPath()
+        bounds = StrokeBounds.from(points, width / 2f)
+    }
+
     fun deepCopy(): Stroke {
         return copyWithPoints(points.toList())
     }
@@ -180,6 +193,15 @@ private val DrawingTools = listOf(
 private val EraserTool = DrawingTool("eraser", "영역 지우개", Color(0xFF6B7280), 44f, ToolKind.Eraser)
 private val PenWidthOptions = listOf(3f, 5f, 8f, 11f)
 
+private const val ShapeSnapDefaultEnabled = true
+private const val ShapeSnapDwellMillis = 600L
+private const val ShapeSnapDwellRadiusDp = 6f
+private const val ShapeSnapCancelRadiusDp = 10f
+private const val ShapeSnapMinimumLengthPx = 28f
+private const val ShapeSnapLineTolerancePx = 8f
+private const val ShapeSnapClosedTolerancePx = 34f
+private const val ShapeSnapEllipsePointCount = 72
+
 @Stable
 class HandwritingState {
     private val _strokes = mutableListOf<Stroke>()
@@ -190,15 +212,17 @@ class HandwritingState {
     private var contentHeightPx: Float = 0f
     private var imageBounds: WorksheetImageBounds? = null
     private var _changeVersion: Long = 0L
+    private var _renderCacheVersion: Long = 0L
     private var _lastChangedAtMillis: Long = 0L
 
     val changeVersion: Long get() = _changeVersion
     val lastChangedAtMillis: Long get() = _lastChangedAtMillis
+    internal val renderCacheVersion: Long get() = _renderCacheVersion
 
     fun clear() {
         _strokes.clear()
         undoSnapshots.clear()
-        notifyChanged()
+        notifyChanged(renderCacheDirty = true)
     }
 
     fun undoLastStroke() {
@@ -207,17 +231,20 @@ class HandwritingState {
             undoSnapshots.removeAt(undoSnapshots.lastIndex)
             _strokes.clear()
             _strokes.addAll(snapshot.map { it.deepCopy() })
-            notifyChanged()
+            notifyChanged(renderCacheDirty = true)
             return
         }
         if (_strokes.isEmpty()) return
         _strokes.removeAt(_strokes.lastIndex)
-        notifyChanged()
+        notifyChanged(renderCacheDirty = true)
     }
 
     fun updateContentSize(widthPx: Float, heightPx: Float) {
+        if (contentWidthPx == widthPx && contentHeightPx == heightPx) return
         contentWidthPx = widthPx
         contentHeightPx = heightPx
+        markRenderCacheDirty()
+        onChanged?.invoke()
     }
 
     fun updateImageBounds(bounds: WorksheetImageBounds) {
@@ -227,14 +254,21 @@ class HandwritingState {
     fun start(position: Offset, color: Color, width: Float, kind: StrokeKind) {
         rememberUndoSnapshot()
         _strokes += Stroke(points = listOf(position), color = color, width = width, kind = kind)
-        notifyChanged()
+        notifyChanged(renderCacheDirty = false)
     }
 
     fun append(position: Offset) {
         val changed = _strokes.lastOrNull()?.addPoint(position) == true
         if (changed) {
-            notifyChanged()
+            notifyChanged(renderCacheDirty = false)
         }
+    }
+
+    internal fun replaceLastStrokePoints(points: List<Offset>) {
+        val stroke = _strokes.lastOrNull() ?: return
+        if (points.isEmpty()) return
+        stroke.replacePoints(points)
+        notifyChanged(renderCacheDirty = false)
     }
 
     internal fun removeLastStrokeIfSinglePoint() {
@@ -244,7 +278,7 @@ class HandwritingState {
         if (undoSnapshots.isNotEmpty()) {
             undoSnapshots.removeAt(undoSnapshots.lastIndex)
         }
-        notifyChanged()
+        notifyChanged(renderCacheDirty = true)
     }
 
     fun eraseAt(position: Offset, radius: Float) {
@@ -272,7 +306,7 @@ class HandwritingState {
         }
         _strokes.clear()
         _strokes.addAll(updated)
-        notifyChanged()
+        notifyChanged(renderCacheDirty = true)
     }
 
     fun erasePath(eraserPoints: List<Offset>, radius: Float): Boolean {
@@ -310,7 +344,7 @@ class HandwritingState {
         rememberUndoSnapshot()
         _strokes.clear()
         _strokes.addAll(updated)
-        notifyChanged()
+        notifyChanged(renderCacheDirty = true)
         return true
     }
 
@@ -320,7 +354,7 @@ class HandwritingState {
         if (!vectorJson.isNullOrBlank()) {
             _strokes.addAll(parseStrokes(vectorJson))
         }
-        notifyChanged()
+        notifyChanged(renderCacheDirty = true)
     }
 
     fun toVectorJson(): String {
@@ -360,10 +394,17 @@ class HandwritingState {
         return lastChanged == 0L || SystemClock.uptimeMillis() - lastChanged >= minIdleMillis
     }
 
-    private fun notifyChanged() {
+    private fun notifyChanged(renderCacheDirty: Boolean) {
+        if (renderCacheDirty) {
+            markRenderCacheDirty()
+        }
         _changeVersion += 1
         _lastChangedAtMillis = SystemClock.uptimeMillis()
         onChanged?.invoke()
+    }
+
+    private fun markRenderCacheDirty() {
+        _renderCacheVersion += 1
     }
 
     private fun rememberUndoSnapshot() {
@@ -430,6 +471,7 @@ fun HandwritingCanvas(
     var currentTool by remember { mutableStateOf(DrawingTools.first()) }
     var lastDrawingTool by remember { mutableStateOf(DrawingTools.first()) }
     var penWidth by remember { mutableStateOf(PenWidthOptions.first()) }
+    var shapeSnapEnabled by remember { mutableStateOf(ShapeSnapDefaultEnabled) }
     var toolMenuExpanded by remember { mutableStateOf(false) }
     var floatingToolMenuPosition by remember { mutableStateOf<Offset?>(null) }
     var scrollOffsetPx by remember { mutableStateOf(0f) }
@@ -483,6 +525,7 @@ fun HandwritingCanvas(
                     view.drawingEnabled = drawingEnabled
                     view.currentTool = currentTool
                     view.penWidth = penWidth
+                    view.shapeSnapEnabled = shapeSnapEnabled
                     view.eraserRadiusPx = with(density) { eraserRadius.toPx() }
                     view.stylusOnlyDrawing = stylusOnlyDrawing
                     view.contentScrollOffsetPx = scrollOffsetPx
@@ -574,6 +617,10 @@ fun HandwritingCanvas(
             PenWidthButton(
                 width = penWidth,
                 onClick = { penWidth = penWidth.nextPenWidth() }
+            )
+            ShapeSnapButton(
+                enabled = shapeSnapEnabled,
+                onClick = { shapeSnapEnabled = !shapeSnapEnabled }
             )
             Box {
                 ToolCircleButton(
@@ -715,6 +762,44 @@ private fun PenWidthButton(
 }
 
 @Composable
+private fun ShapeSnapButton(
+    enabled: Boolean,
+    onClick: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .size(30.dp)
+            .semantics { contentDescription = if (enabled) "도형 스냅 켜짐" else "도형 스냅 꺼짐" }
+            .clickable(onClick = onClick)
+            .background(Color.White, CircleShape)
+            .border(
+                width = if (enabled) 3.dp else 1.dp,
+                color = if (enabled) MaterialTheme.colorScheme.primary else Color(0xFFE5E7EB),
+                shape = CircleShape
+            ),
+        contentAlignment = Alignment.Center
+    ) {
+        Canvas(modifier = Modifier.size(20.dp)) {
+            val color = if (enabled) Color(0xFF2563EB) else Color(0xFF6B7280)
+            val stroke = 1.7.dp.toPx()
+            drawRoundRect(
+                color = color,
+                topLeft = Offset(size.width * 0.18f, size.height * 0.22f),
+                size = Size(size.width * 0.42f, size.height * 0.42f),
+                cornerRadius = CornerRadius(1.5.dp.toPx(), 1.5.dp.toPx()),
+                style = androidx.compose.ui.graphics.drawscope.Stroke(width = stroke)
+            )
+            drawCircle(
+                color = color.copy(alpha = if (enabled) 0.82f else 0.45f),
+                radius = size.minDimension * 0.18f,
+                center = Offset(size.width * 0.66f, size.height * 0.66f),
+                style = androidx.compose.ui.graphics.drawscope.Stroke(width = stroke)
+            )
+        }
+    }
+}
+
+@Composable
 private fun ToolCircleButton(
     tool: DrawingTool,
     selected: Boolean,
@@ -829,6 +914,26 @@ private fun DrawingTool.strokeKind(): StrokeKind {
     return if (kind == ToolKind.Highlighter) StrokeKind.Highlighter else StrokeKind.Pen
 }
 
+private data class ShapeSnapPreview(
+    val activationPosition: Offset
+)
+
+private data class ShapeSnapCandidate(
+    val points: List<Offset>
+)
+
+private data class PointBounds(
+    val left: Float,
+    val top: Float,
+    val right: Float,
+    val bottom: Float
+) {
+    val width: Float get() = right - left
+    val height: Float get() = bottom - top
+    val diagonal: Float get() = sqrt(width * width + height * height)
+    val center: Offset get() = Offset((left + right) / 2f, (top + bottom) / 2f)
+}
+
 private class InkDrawingView(context: Context) : View(context) {
     private val invalidation = { postInvalidateOnAnimation() }
     private val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -845,9 +950,24 @@ private class InkDrawingView(context: Context) : View(context) {
         strokeCap = Paint.Cap.ROUND
         strokeJoin = Paint.Join.ROUND
     }
+    private val bitmapPaint = Paint(Paint.FILTER_BITMAP_FLAG)
     private val eraserPreviewPath = AndroidPath()
     private val pendingEraserPoints = mutableListOf<Offset>()
     private var state: HandwritingState? = null
+    private var strokeCacheBitmap: Bitmap? = null
+    private var strokeCacheCanvas: AndroidCanvas? = null
+    private var strokeCacheWidth = 0
+    private var strokeCacheHeight = 0
+    private var strokeCacheScrollOffsetPx = Float.NaN
+    private var strokeCacheRenderVersion = -1L
+    private var strokeCacheStrokeCount = 0
+    private val shapeSnapDwellRadiusPx = resources.displayMetrics.density * ShapeSnapDwellRadiusDp
+    private val shapeSnapCancelRadiusPx = resources.displayMetrics.density * ShapeSnapCancelRadiusDp
+    private val freehandStrokePoints = mutableListOf<Offset>()
+    private var shapeSnapPreview: ShapeSnapPreview? = null
+    private var shapeSnapDwellAnchor: Offset? = null
+    private var shapeSnapDwellStartedAt = 0L
+    private val shapeSnapRunnable = Runnable { tryActivateShapeSnap() }
     private var activePointerId = MotionEvent.INVALID_POINTER_ID
     private var activeToolKind = ToolKind.Pen
     private var activePointerStartedByFinger = false
@@ -868,6 +988,8 @@ private class InkDrawingView(context: Context) : View(context) {
                 fingerScrollPointerId = MotionEvent.INVALID_POINTER_ID
                 fingerScrollActive = false
                 eraserCenter = null
+                cancelShapeSnapPreview(restoreFreehand = true)
+                clearShapeSnapTracking()
                 clearPendingEraser()
                 twoFingerScrollActive = false
             }
@@ -876,6 +998,15 @@ private class InkDrawingView(context: Context) : View(context) {
 
     var currentTool: DrawingTool = DrawingTools.first()
     var penWidth: Float = PenWidthOptions.first()
+    var shapeSnapEnabled: Boolean = ShapeSnapDefaultEnabled
+        set(value) {
+            if (field == value) return
+            field = value
+            if (!value) {
+                cancelShapeSnapPreview(restoreFreehand = true)
+                clearShapeSnapTracking()
+            }
+        }
     var eraserRadiusPx: Float = 22f
     var stylusOnlyDrawing: Boolean = true
     var contentScrollOffsetPx: Float = 0f
@@ -899,6 +1030,8 @@ private class InkDrawingView(context: Context) : View(context) {
         state?.onChanged = null
         state = newState
         newState.onChanged = invalidation
+        resetStrokeCache(recycle = true)
+        clearShapeSnapTracking()
         clearPendingEraser()
         postInvalidateOnAnimation()
     }
@@ -907,7 +1040,16 @@ private class InkDrawingView(context: Context) : View(context) {
         if (state?.onChanged === invalidation) {
             state?.onChanged = null
         }
+        resetStrokeCache(recycle = true)
+        clearShapeSnapTracking()
         super.onDetachedFromWindow()
+    }
+
+    override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
+        super.onSizeChanged(w, h, oldw, oldh)
+        if (w != oldw || h != oldh) {
+            resetStrokeCache(recycle = true)
+        }
     }
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
@@ -1015,24 +1157,20 @@ private class InkDrawingView(context: Context) : View(context) {
 
     override fun onDraw(canvas: AndroidCanvas) {
         super.onDraw(canvas)
+        val currentState = state ?: return
+        val committedStrokeCount = committedStrokeCountFor(currentState)
+        val cacheReady = ensureStrokeCache(currentState, committedStrokeCount)
+        if (cacheReady) {
+            strokeCacheBitmap?.let { cache ->
+                canvas.drawBitmap(cache, 0f, 0f, bitmapPaint)
+            }
+        }
         canvas.save()
         canvas.translate(0f, -contentScrollOffsetPx)
-        state?.strokes?.forEach { stroke ->
-            strokePaint.color = stroke.color.toArgb()
-            strokePaint.strokeWidth = stroke.width
-            if (stroke.kind == StrokeKind.Highlighter) {
-                strokePaint.strokeCap = Paint.Cap.BUTT
-                strokePaint.strokeJoin = Paint.Join.BEVEL
-            } else {
-                strokePaint.strokeCap = Paint.Cap.ROUND
-                strokePaint.strokeJoin = Paint.Join.ROUND
-            }
-            if (stroke.points.size == 1) {
-                val point = stroke.points.first()
-                canvas.drawCircle(point.x, point.y, stroke.width / 2f, strokePaint)
-            } else {
-                canvas.drawPath(stroke.path, strokePaint)
-            }
+        if (cacheReady) {
+            drawStrokeRange(canvas, currentState.strokes, strokeCacheStrokeCount, currentState.strokes.size)
+        } else {
+            drawStrokeRange(canvas, currentState.strokes, 0, currentState.strokes.size)
         }
         if (drawingEnabled && currentTool.kind == ToolKind.Eraser) {
             if (pendingEraserPoints.isNotEmpty()) {
@@ -1046,6 +1184,125 @@ private class InkDrawingView(context: Context) : View(context) {
         canvas.restore()
     }
 
+    private fun committedStrokeCountFor(state: HandwritingState): Int {
+        return if (hasActiveInkStroke() && state.strokes.isNotEmpty()) {
+            state.strokes.lastIndex
+        } else {
+            state.strokes.size
+        }
+    }
+
+    private fun hasActiveInkStroke(): Boolean {
+        return activePointerId != MotionEvent.INVALID_POINTER_ID && activeToolKind != ToolKind.Eraser
+    }
+
+    private fun ensureStrokeCache(state: HandwritingState, committedStrokeCount: Int): Boolean {
+        if (width <= 0 || height <= 0) return false
+        val cache = ensureStrokeCacheBitmap() ?: return false
+        val needsRebuild = strokeCacheScrollOffsetPx != contentScrollOffsetPx ||
+            strokeCacheRenderVersion != state.renderCacheVersion ||
+            strokeCacheStrokeCount > committedStrokeCount
+        if (needsRebuild) {
+            rebuildStrokeCache(cache, state, committedStrokeCount)
+        } else if (strokeCacheStrokeCount < committedStrokeCount) {
+            drawStrokeRangeToCache(state, strokeCacheStrokeCount, committedStrokeCount)
+            strokeCacheStrokeCount = committedStrokeCount
+        }
+        return true
+    }
+
+    private fun ensureStrokeCacheBitmap(): Bitmap? {
+        val existing = strokeCacheBitmap
+        if (
+            existing != null &&
+            !existing.isRecycled &&
+            strokeCacheWidth == width &&
+            strokeCacheHeight == height
+        ) {
+            return existing
+        }
+        resetStrokeCache(recycle = true)
+        return try {
+            Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888).also { bitmap ->
+                bitmap.eraseColor(AndroidColor.TRANSPARENT)
+                strokeCacheBitmap = bitmap
+                strokeCacheCanvas = AndroidCanvas(bitmap)
+                strokeCacheWidth = width
+                strokeCacheHeight = height
+            }
+        } catch (error: OutOfMemoryError) {
+            resetStrokeCache(recycle = true)
+            null
+        }
+    }
+
+    private fun rebuildStrokeCache(cache: Bitmap, state: HandwritingState, committedStrokeCount: Int) {
+        cache.eraseColor(AndroidColor.TRANSPARENT)
+        strokeCacheScrollOffsetPx = contentScrollOffsetPx
+        strokeCacheRenderVersion = state.renderCacheVersion
+        strokeCacheStrokeCount = 0
+        drawStrokeRangeToCache(state, 0, committedStrokeCount)
+        strokeCacheStrokeCount = committedStrokeCount
+    }
+
+    private fun drawStrokeRangeToCache(state: HandwritingState, fromIndex: Int, toIndex: Int) {
+        val cacheCanvas = strokeCacheCanvas ?: return
+        val from = fromIndex.coerceIn(0, state.strokes.size)
+        val to = toIndex.coerceIn(from, state.strokes.size)
+        cacheCanvas.save()
+        cacheCanvas.translate(0f, -strokeCacheScrollOffsetPx)
+        drawStrokeRange(cacheCanvas, state.strokes, from, to)
+        cacheCanvas.restore()
+    }
+
+    private fun drawStrokeRange(canvas: AndroidCanvas, strokes: List<Stroke>, fromIndex: Int, toIndex: Int) {
+        val from = fromIndex.coerceIn(0, strokes.size)
+        val to = toIndex.coerceIn(from, strokes.size)
+        for (index in from until to) {
+            drawStroke(canvas, strokes[index])
+        }
+    }
+
+    private fun drawStroke(canvas: AndroidCanvas, stroke: Stroke) {
+        strokePaint.color = stroke.color.toArgb()
+        strokePaint.strokeWidth = stroke.width
+        if (stroke.kind == StrokeKind.Highlighter) {
+            strokePaint.strokeCap = Paint.Cap.BUTT
+            strokePaint.strokeJoin = Paint.Join.BEVEL
+        } else {
+            strokePaint.strokeCap = Paint.Cap.ROUND
+            strokePaint.strokeJoin = Paint.Join.ROUND
+        }
+        if (stroke.points.size == 1) {
+            val point = stroke.points.first()
+            canvas.drawCircle(point.x, point.y, stroke.width / 2f, strokePaint)
+        } else {
+            canvas.drawPath(stroke.path, strokePaint)
+        }
+    }
+
+    private fun commitActiveStrokeToCache() {
+        val currentState = state ?: return
+        if (!hasActiveInkStroke() || currentState.strokes.isEmpty()) return
+        if (!ensureStrokeCache(currentState, currentState.strokes.lastIndex)) return
+        drawStrokeRangeToCache(currentState, strokeCacheStrokeCount, currentState.strokes.size)
+        strokeCacheStrokeCount = currentState.strokes.size
+        postInvalidateOnAnimation()
+    }
+
+    private fun resetStrokeCache(recycle: Boolean) {
+        if (recycle) {
+            strokeCacheBitmap?.recycle()
+        }
+        strokeCacheBitmap = null
+        strokeCacheCanvas = null
+        strokeCacheWidth = 0
+        strokeCacheHeight = 0
+        strokeCacheScrollOffsetPx = Float.NaN
+        strokeCacheRenderVersion = -1L
+        strokeCacheStrokeCount = 0
+    }
+
     private fun eventToolKind(event: MotionEvent, pointerIndex: Int): ToolKind {
         return if (event.getToolType(pointerIndex) == MotionEvent.TOOL_TYPE_ERASER) {
             ToolKind.Eraser
@@ -1057,8 +1314,12 @@ private class InkDrawingView(context: Context) : View(context) {
     private fun handlePoint(state: HandwritingState, x: Float, y: Float, start: Boolean) {
         val position = Offset(x, y)
         if (activeToolKind == ToolKind.Eraser) {
+            clearShapeSnapTracking()
             eraserCenter = position
             recordEraserPoint(position, start)
+            return
+        }
+        if (handleShapeSnapPoint(state, position, start)) {
             return
         }
         if (start) {
@@ -1068,9 +1329,105 @@ private class InkDrawingView(context: Context) : View(context) {
                 width = currentTool.activeWidth(penWidth),
                 kind = currentTool.strokeKind()
             )
+            beginShapeSnapTracking(position)
         } else {
             state.append(position)
+            recordFreehandPoint(position)
         }
+    }
+
+    private fun handleShapeSnapPoint(state: HandwritingState, position: Offset, start: Boolean): Boolean {
+        if (start || !shapeSnapEnabled || activeToolKind == ToolKind.Eraser) return false
+        val preview = shapeSnapPreview
+        if (preview != null) {
+            recordFreehandPoint(position)
+            if (distance(position, preview.activationPosition) >= shapeSnapCancelRadiusPx) {
+                cancelShapeSnapPreview(restoreFreehand = true)
+                resetShapeSnapDwell(position)
+            }
+            return true
+        }
+        recordFreehandPoint(position)
+        state.append(position)
+        updateShapeSnapDwell(position)
+        return true
+    }
+
+    private fun beginShapeSnapTracking(position: Offset) {
+        freehandStrokePoints.clear()
+        shapeSnapPreview = null
+        if (shapeSnapEnabled && activeToolKind != ToolKind.Eraser) {
+            freehandStrokePoints += position
+            resetShapeSnapDwell(position)
+        } else {
+            removeCallbacks(shapeSnapRunnable)
+        }
+    }
+
+    private fun recordFreehandPoint(position: Offset) {
+        if (!shapeSnapEnabled || activeToolKind == ToolKind.Eraser) return
+        val last = freehandStrokePoints.lastOrNull()
+        if (last == null || distance(last, position) >= MinInkPointDistancePx) {
+            freehandStrokePoints += position
+        }
+    }
+
+    private fun updateShapeSnapDwell(position: Offset) {
+        if (!shapeSnapEnabled || activeToolKind == ToolKind.Eraser) return
+        val anchor = shapeSnapDwellAnchor
+        if (anchor == null || distance(anchor, position) > shapeSnapDwellRadiusPx) {
+            resetShapeSnapDwell(position)
+        } else {
+            scheduleShapeSnapCheck()
+        }
+    }
+
+    private fun resetShapeSnapDwell(position: Offset) {
+        shapeSnapDwellAnchor = position
+        shapeSnapDwellStartedAt = SystemClock.uptimeMillis()
+        scheduleShapeSnapCheck()
+    }
+
+    private fun scheduleShapeSnapCheck() {
+        removeCallbacks(shapeSnapRunnable)
+        postDelayed(shapeSnapRunnable, ShapeSnapDwellMillis)
+    }
+
+    private fun tryActivateShapeSnap() {
+        val currentState = state ?: return
+        if (!shapeSnapEnabled || activeToolKind == ToolKind.Eraser || shapeSnapPreview != null) return
+        if (activePointerId == MotionEvent.INVALID_POINTER_ID || freehandStrokePoints.size < 2) return
+        val anchor = shapeSnapDwellAnchor ?: return
+        val last = freehandStrokePoints.lastOrNull() ?: return
+        val now = SystemClock.uptimeMillis()
+        if (now - shapeSnapDwellStartedAt < ShapeSnapDwellMillis) {
+            scheduleShapeSnapCheck()
+            return
+        }
+        if (distance(anchor, last) > shapeSnapDwellRadiusPx) return
+        val candidate = recognizeShapeSnap(freehandStrokePoints) ?: return
+        currentState.replaceLastStrokePoints(candidate.points)
+        shapeSnapPreview = ShapeSnapPreview(activationPosition = last)
+        postInvalidateOnAnimation()
+    }
+
+    private fun cancelShapeSnapPreview(restoreFreehand: Boolean) {
+        val preview = shapeSnapPreview ?: return
+        if (restoreFreehand && freehandStrokePoints.isNotEmpty()) {
+            state?.replaceLastStrokePoints(freehandStrokePoints.toList())
+        }
+        shapeSnapPreview = null
+        shapeSnapDwellAnchor = preview.activationPosition
+        shapeSnapDwellStartedAt = SystemClock.uptimeMillis()
+        postInvalidateOnAnimation()
+    }
+
+    private fun clearShapeSnapTracking() {
+        removeCallbacks(shapeSnapRunnable)
+        freehandStrokePoints.clear()
+        shapeSnapPreview = null
+        shapeSnapDwellAnchor = null
+        shapeSnapDwellStartedAt = 0L
     }
 
     private fun handleStylusButtonEvent(event: MotionEvent): Boolean {
@@ -1090,6 +1447,8 @@ private class InkDrawingView(context: Context) : View(context) {
         if (activePointerStartedByFinger) {
             state.removeLastStrokeIfSinglePoint()
         }
+        cancelShapeSnapPreview(restoreFreehand = true)
+        clearShapeSnapTracking()
         activePointerId = MotionEvent.INVALID_POINTER_ID
         activePointerStartedByFinger = false
         fingerScrollPointerId = MotionEvent.INVALID_POINTER_ID
@@ -1112,6 +1471,8 @@ private class InkDrawingView(context: Context) : View(context) {
     }
 
     private fun startFingerScroll(event: MotionEvent, pointerIndex: Int) {
+        cancelShapeSnapPreview(restoreFreehand = true)
+        clearShapeSnapTracking()
         activePointerId = MotionEvent.INVALID_POINTER_ID
         activePointerStartedByFinger = false
         eraserCenter = null
@@ -1152,6 +1513,7 @@ private class InkDrawingView(context: Context) : View(context) {
             fingerScrollActive = false
             eraserCenter = null
             twoFingerScrollActive = false
+            clearShapeSnapTracking()
             postInvalidateOnAnimation()
         }
     }
@@ -1159,6 +1521,8 @@ private class InkDrawingView(context: Context) : View(context) {
     private fun finishStroke() {
         if (activeToolKind == ToolKind.Eraser && pendingEraserPoints.isNotEmpty()) {
             state?.erasePath(pendingEraserPoints.toList(), eraserRadiusPx)
+        } else {
+            commitActiveStrokeToCache()
         }
         activePointerId = MotionEvent.INVALID_POINTER_ID
         activePointerStartedByFinger = false
@@ -1166,6 +1530,7 @@ private class InkDrawingView(context: Context) : View(context) {
         fingerScrollActive = false
         eraserCenter = null
         clearPendingEraser()
+        clearShapeSnapTracking()
         twoFingerScrollActive = false
         parent?.requestDisallowInterceptTouchEvent(false)
         postInvalidateOnAnimation()
@@ -1273,6 +1638,192 @@ private fun distanceSquared(a: Offset, b: Offset): Float {
     val dx = a.x - b.x
     val dy = a.y - b.y
     return dx * dx + dy * dy
+}
+
+private fun recognizeShapeSnap(points: List<Offset>): ShapeSnapCandidate? {
+    val cleaned = points.withoutNearDuplicates(MinInkPointDistancePx)
+    if (cleaned.size < 2) return null
+    val first = cleaned.first()
+    val last = cleaned.last()
+    val length = pathLength(cleaned)
+    if (length < ShapeSnapMinimumLengthPx) return null
+    val directDistance = distance(first, last)
+    val bounds = pointBounds(cleaned) ?: return null
+    val closedThreshold = max(ShapeSnapClosedTolerancePx, bounds.diagonal * 0.16f)
+
+    if (directDistance > closedThreshold) {
+        val maxDeviation = cleaned.maxOf { point ->
+            distanceToSegment(point, first, last)
+        }
+        val lineTolerance = max(ShapeSnapLineTolerancePx, directDistance * 0.12f)
+        if (directDistance >= ShapeSnapMinimumLengthPx &&
+            length <= directDistance * 1.35f &&
+            maxDeviation <= lineTolerance
+        ) {
+            return ShapeSnapCandidate(listOf(first, last))
+        }
+        return null
+    }
+
+    if (bounds.width < ShapeSnapMinimumLengthPx * 0.7f || bounds.height < ShapeSnapMinimumLengthPx * 0.7f) {
+        return null
+    }
+
+    val closedPoints = cleaned.dropLastIfNearFirst(closedThreshold)
+    if (closedPoints.size < 4) return null
+    val simplifyTolerance = max(ShapeSnapLineTolerancePx, bounds.diagonal * 0.075f)
+    val corners = simplifyClosedCorners(closedPoints, simplifyTolerance)
+
+    if (corners.size == 3) {
+        return ShapeSnapCandidate(closePolyline(corners))
+    }
+    if (corners.size == 4 && isRectangleLike(corners)) {
+        return ShapeSnapCandidate(closePolyline(corners))
+    }
+    if (looksEllipseLike(closedPoints, bounds)) {
+        return ShapeSnapCandidate(sampleEllipse(bounds, first))
+    }
+    return null
+}
+
+private fun List<Offset>.withoutNearDuplicates(minDistance: Float): List<Offset> {
+    if (isEmpty()) return emptyList()
+    val result = mutableListOf(first())
+    val minDistanceSquared = minDistance * minDistance
+    for (index in 1 until size) {
+        val point = this[index]
+        if (distanceSquared(result.last(), point) >= minDistanceSquared) {
+            result += point
+        }
+    }
+    return result
+}
+
+private fun List<Offset>.dropLastIfNearFirst(threshold: Float): List<Offset> {
+    if (size <= 1) return this
+    return if (distance(first(), last()) <= threshold) dropLast(1) else this
+}
+
+private fun pathLength(points: List<Offset>): Float {
+    var length = 0f
+    for (index in 1 until points.size) {
+        length += distance(points[index - 1], points[index])
+    }
+    return length
+}
+
+private fun pointBounds(points: List<Offset>): PointBounds? {
+    val first = points.firstOrNull() ?: return null
+    var left = first.x
+    var top = first.y
+    var right = first.x
+    var bottom = first.y
+    for (point in points) {
+        left = min(left, point.x)
+        top = min(top, point.y)
+        right = max(right, point.x)
+        bottom = max(bottom, point.y)
+    }
+    return PointBounds(left, top, right, bottom)
+}
+
+private fun simplifyClosedCorners(points: List<Offset>, tolerance: Float): List<Offset> {
+    if (points.size <= 3) return points
+    val rotated = points.rotateForStableClosedSimplify()
+    val simplified = simplifyPolyline(rotated + rotated.first(), tolerance)
+        .dropLastIfNearFirst(tolerance)
+        .withoutNearDuplicates(tolerance)
+    if (simplified.size <= 1) return simplified
+    return if (distance(simplified.first(), simplified.last()) <= tolerance) simplified.dropLast(1) else simplified
+}
+
+private fun List<Offset>.rotateForStableClosedSimplify(): List<Offset> {
+    if (size <= 2) return this
+    val bounds = pointBounds(this) ?: return this
+    val center = bounds.center
+    val startIndex = indices.maxByOrNull { index ->
+        distanceSquared(this[index], center)
+    } ?: 0
+    return drop(startIndex) + take(startIndex)
+}
+
+private fun simplifyPolyline(points: List<Offset>, tolerance: Float): List<Offset> {
+    if (points.size <= 2) return points
+    var maxDistance = -1f
+    var splitIndex = 0
+    val first = points.first()
+    val last = points.last()
+    for (index in 1 until points.lastIndex) {
+        val distance = distanceToSegment(points[index], first, last)
+        if (distance > maxDistance) {
+            maxDistance = distance
+            splitIndex = index
+        }
+    }
+    if (maxDistance <= tolerance || splitIndex == 0) {
+        return listOf(first, last)
+    }
+    val left = simplifyPolyline(points.subList(0, splitIndex + 1), tolerance)
+    val right = simplifyPolyline(points.subList(splitIndex, points.size), tolerance)
+    return left.dropLast(1) + right
+}
+
+private fun isRectangleLike(corners: List<Offset>): Boolean {
+    if (corners.size != 4) return false
+    val sides = corners.indices.map { index ->
+        distance(corners[index], corners[(index + 1) % corners.size])
+    }
+    if (sides.any { it < ShapeSnapMinimumLengthPx * 0.45f }) return false
+    val diagonals = listOf(
+        distance(corners[0], corners[2]),
+        distance(corners[1], corners[3])
+    )
+    val diagonalDelta = abs(diagonals[0] - diagonals[1])
+    val longestDiagonal = max(diagonals[0], diagonals[1]).coerceAtLeast(1f)
+    return diagonalDelta / longestDiagonal <= 0.35f
+}
+
+private fun looksEllipseLike(points: List<Offset>, bounds: PointBounds): Boolean {
+    val rx = (bounds.width / 2f).coerceAtLeast(1f)
+    val ry = (bounds.height / 2f).coerceAtLeast(1f)
+    val center = bounds.center
+    var totalDeviation = 0f
+    var outsideCount = 0
+    for (point in points) {
+        val normalizedX = (point.x - center.x) / rx
+        val normalizedY = (point.y - center.y) / ry
+        val radial = sqrt(normalizedX * normalizedX + normalizedY * normalizedY)
+        val deviation = abs(radial - 1f)
+        totalDeviation += deviation
+        if (deviation > 0.42f) outsideCount += 1
+    }
+    val averageDeviation = totalDeviation / points.size.toFloat()
+    return averageDeviation <= 0.24f && outsideCount <= points.size / 5
+}
+
+private fun closePolyline(points: List<Offset>): List<Offset> {
+    if (points.isEmpty()) return emptyList()
+    return if (points.size == 1 || distance(points.first(), points.last()) <= 0.01f) {
+        points
+    } else {
+        points + points.first()
+    }
+}
+
+private fun sampleEllipse(bounds: PointBounds, start: Offset): List<Offset> {
+    val center = bounds.center
+    val rx = (bounds.width / 2f).coerceAtLeast(1f)
+    val ry = (bounds.height / 2f).coerceAtLeast(1f)
+    val startAngle = atan2((start.y - center.y) / ry, (start.x - center.x) / rx)
+    val points = mutableListOf<Offset>()
+    for (index in 0..ShapeSnapEllipsePointCount) {
+        val angle = startAngle + (2.0 * PI * index.toDouble() / ShapeSnapEllipsePointCount.toDouble())
+        points += Offset(
+            x = center.x + (cos(angle) * rx).toFloat(),
+            y = center.y + (sin(angle) * ry).toFloat()
+        )
+    }
+    return points
 }
 
 private fun distanceToSegment(point: Offset, start: Offset, end: Offset): Float {

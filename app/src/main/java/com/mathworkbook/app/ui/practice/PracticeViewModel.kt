@@ -228,11 +228,24 @@ class PracticeViewModel(
     fun toggleChoice(choiceId: String) {
         val fieldId = _state.value.fields.firstOrNull()?.answerFieldId ?: return
         _state.update { current ->
-            val selected = current.selectedChoiceIds.toMutableSet()
-            if (!selected.add(choiceId)) selected.remove(choiceId)
+            val choiceIds = current.choices.map { it.choiceId }.toSet()
+            val orderedSelected = current.inputByField[fieldId].orEmpty()
+                .split(",")
+                .map { it.trim() }
+                .filter { it.isNotBlank() && choiceIds.contains(it) }
+                .distinct()
+                .toMutableList()
+            if (orderedSelected.contains(choiceId)) {
+                orderedSelected.removeAll { it == choiceId }
+            } else {
+                orderedSelected.add(choiceId)
+            }
+            val selected = orderedSelected.toSet()
+            val orderedAnswer = orderedSelected
+                .joinToString(",")
             current.copy(
                 selectedChoiceIds = selected,
-                inputByField = current.inputByField + (fieldId to selected.sorted().joinToString(",")),
+                inputByField = current.inputByField + (fieldId to orderedAnswer),
                 feedback = null,
                 showCorrectMark = false
             )
