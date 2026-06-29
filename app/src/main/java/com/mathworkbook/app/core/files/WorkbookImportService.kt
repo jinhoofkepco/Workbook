@@ -32,6 +32,11 @@ class WorkbookImportService(
         val workbookJson = findEntryBytes(entries, "workbook.json")?.toString(Charsets.UTF_8)
             ?: error("ZIP 안에 workbook.json 파일이 필요합니다.")
         val root = JSONObject(workbookJson)
+        when (detectWorkbookManifestType(root)) {
+            WorkbookManifestType.LegacyProblemSet -> Unit
+            WorkbookManifestType.ScanPageCoordinates ->
+                error("스캔형 문제집 JSON은 인식했지만, ZIP 가져오기 저장은 아직 1차 MVP 화면에만 연결되어 있습니다.")
+        }
         val now = System.currentTimeMillis()
         val workbookObject = root.getJSONObject("workbook")
         val workbookId = workbookObject.optString("workbookId").ifBlank { UUID.randomUUID().toString() }

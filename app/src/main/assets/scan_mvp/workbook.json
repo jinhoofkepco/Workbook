@@ -1,0 +1,157 @@
+{
+  "type": "scan_page_coordinates",
+  "schemaVersion": 1,
+  "workbook": {
+    "workbookId": "olympiad-2-scan-mvp",
+    "type": "scan_page_coordinates",
+    "title": "올림피아드 2과정 스캔 MVP",
+    "version": 1
+  },
+  "title": "올림피아드 2과정 스캔 MVP",
+  "pages": [
+    {
+      "pageId": "olympiad-2-p008",
+      "pageNumber": 8,
+      "assetPath": "scan_mvp/olympiad2_page-008.png",
+      "width": 1076,
+      "height": 1521,
+      "problems": [
+        {
+          "problemId": "p008-core-1",
+          "label": "핵심 1",
+          "problemRect": { "x": 0.12, "y": 0.50, "w": 0.82, "h": 0.20 },
+          "answerFields": [
+            {
+              "fieldId": "p008-core-1-answer",
+              "label": "㉠㉡",
+              "answer": "6,6",
+              "rect": { "x": 0.70, "y": 0.67, "w": 0.24, "h": 0.055 }
+            }
+          ]
+        },
+        {
+          "problemId": "p008-core-2",
+          "label": "핵심 2",
+          "problemRect": { "x": 0.12, "y": 0.73, "w": 0.82, "h": 0.20 },
+          "answerFields": [
+            {
+              "fieldId": "p008-core-2-answer",
+              "label": "답",
+              "answer": "79725",
+              "rect": { "x": 0.74, "y": 0.89, "w": 0.18, "h": 0.055 }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "pageId": "olympiad-2-p009",
+      "pageNumber": 9,
+      "assetPath": "scan_mvp/olympiad2_page-009.png",
+      "width": 1076,
+      "height": 1521,
+      "problems": [
+        {
+          "problemId": "p009-1",
+          "label": "문제 1",
+          "problemRect": { "x": 0.10, "y": 0.10, "w": 0.80, "h": 0.24 },
+          "answerFields": [
+            {
+              "fieldId": "p009-1-answer",
+              "label": "답",
+              "answer": "12",
+              "rect": { "x": 0.24, "y": 0.25, "w": 0.16, "h": 0.055 }
+            }
+          ]
+        },
+        {
+          "problemId": "p009-4",
+          "label": "문제 4",
+          "problemRect": { "x": 0.10, "y": 0.72, "w": 0.82, "h": 0.18 },
+          "answerFields": [
+            {
+              "fieldId": "p009-4-answer",
+              "label": "답",
+              "answer": "11",
+              "rect": { "x": 0.50, "y": 0.84, "w": 0.16, "h": 0.055 }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "pageId": "olympiad-2-p010",
+      "pageNumber": 10,
+      "assetPath": "scan_mvp/olympiad2_page-010.png",
+      "width": 1076,
+      "height": 1521,
+      "problems": [
+        {
+          "problemId": "p010-1",
+          "label": "1",
+          "problemRect": { "x": 0.10, "y": 0.09, "w": 0.82, "h": 0.15 },
+          "answerFields": [
+            {
+              "fieldId": "p010-1-answer",
+              "label": "A+B",
+              "answer": "8,17",
+              "rect": { "x": 0.72, "y": 0.16, "w": 0.18, "h": 0.055 }
+            }
+          ]
+        },
+        {
+          "problemId": "p010-2",
+          "label": "2",
+          "problemRect": { "x": 0.10, "y": 0.26, "w": 0.82, "h": 0.15 },
+          "answerFields": [
+            {
+              "fieldId": "p010-2-answer",
+              "label": "차",
+              "answer": "69996",
+              "rect": { "x": 0.72, "y": 0.34, "w": 0.18, "h": 0.055 }
+            }
+          ]
+        },
+        {
+          "problemId": "p010-3",
+          "label": "3",
+          "problemRect": { "x": 0.10, "y": 0.43, "w": 0.82, "h": 0.15 },
+          "answerFields": [
+            {
+              "fieldId": "p010-3-answer",
+              "label": "답",
+              "answer": "8",
+              "rect": { "x": 0.72, "y": 0.51, "w": 0.18, "h": 0.055 }
+            }
+          ]
+        },
+        {
+          "problemId": "p010-4",
+          "label": "4",
+          "problemRect": { "x": 0.10, "y": 0.61, "w": 0.82, "h": 0.13 },
+          "answerFields": [
+            {
+              "fieldId": "p010-4-answer",
+              "label": "□",
+              "answer": "4",
+              "rect": { "x": 0.72, "y": 0.68, "w": 0.18, "h": 0.055 }
+            }
+          ]
+        },
+        {
+          "problemId": "p010-5",
+          "label": "5",
+          "problemRect": { "x": 0.10, "y": 0.78, "w": 0.82, "h": 0.13 },
+          "answerFields": [
+            {
+              "fieldId": "p010-5-answer",
+              "label": "A",
+              "answer": "1,4,7",
+              "rect": { "x": 0.72, "y": 0.84, "w": 0.18, "h": 0.055 }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

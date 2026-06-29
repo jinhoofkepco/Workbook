@@ -52,12 +52,14 @@ import com.mathworkbook.app.ui.master.MasterViewModelFactory
 import com.mathworkbook.app.ui.practice.PracticeScreen
 import com.mathworkbook.app.ui.practice.PracticeViewModel
 import com.mathworkbook.app.ui.practice.PracticeViewModelFactory
+import com.mathworkbook.app.ui.scan.ScanWorkbookMvpScreen
 import com.mathworkbook.app.ui.skin.LocalWorkbookSkin
 import com.mathworkbook.app.ui.skin.SkinAssetImage
 
 private enum class RootTab(val label: String) {
     Dashboard("진도판"),
-    Problem("문제")
+    Problem("문제"),
+    Scan("스캔")
 }
 
 private enum class ProblemMode {
@@ -211,11 +213,22 @@ fun MathWorkbookApp(container: AppContainer) {
                                 }
                             }
                         }
+                        RootTab.Scan -> {
+                            ScanWorkbookMvpScreen(
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
                     }
 
                     BottomMenu(
+                        selectedTab = selectedTab,
                         isMasterMode = isMasterMode,
                         toolsExpanded = toolsExpanded,
+                        onSelectTab = { tab ->
+                            selectedTab = tab
+                            activeMasterTool = null
+                            toolsExpanded = false
+                        },
                         onToggleTools = {
                             toolsExpanded = !toolsExpanded
                         },
@@ -303,8 +316,10 @@ private const val MAX_PROBLEM_TEXT_SIZE_SP = 36
 
 @Composable
 private fun BottomMenu(
+    selectedTab: RootTab,
     isMasterMode: Boolean,
     toolsExpanded: Boolean,
+    onSelectTab: (RootTab) -> Unit,
     onToggleTools: () -> Unit,
     onSelectTool: (MasterToolAction) -> Unit,
     onToggleMasterMode: () -> Unit
@@ -323,6 +338,15 @@ private fun BottomMenu(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                RoundToolButton("진", selected = selectedTab == RootTab.Dashboard) {
+                    onSelectTab(RootTab.Dashboard)
+                }
+                RoundToolButton("문", selected = selectedTab == RootTab.Problem) {
+                    onSelectTab(RootTab.Problem)
+                }
+                RoundToolButton("스", selected = selectedTab == RootTab.Scan) {
+                    onSelectTab(RootTab.Scan)
+                }
                 Spacer(modifier = Modifier.weight(1f))
                 if (isMasterMode) {
                     if (toolsExpanded) {
