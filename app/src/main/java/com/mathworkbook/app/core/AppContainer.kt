@@ -8,6 +8,7 @@ import com.mathworkbook.app.core.generation.SafeFormulaEvaluator
 import com.mathworkbook.app.core.generation.SimilarProblemGenerator
 import com.mathworkbook.app.core.generation.SimilarProblemQueueService
 import com.mathworkbook.app.core.grading.DefaultGradingEngine
+import com.mathworkbook.app.core.gpt.WorkbookGptGateway
 import com.mathworkbook.app.core.skin.SkinManager
 import com.mathworkbook.app.core.usecase.AttemptLimitResolver
 import com.mathworkbook.app.core.usecase.SubmitExamUseCase
@@ -24,6 +25,7 @@ class AppContainer(context: Context) {
     val fileStorage = FileStorage(context)
     val skinManager = SkinManager(context.applicationContext)
     val viewerServer = ViewerServer(context.applicationContext, dao)
+    val gptGateway = WorkbookGptGateway(context.applicationContext)
     val workbookImportService = WorkbookImportService(context, dao, fileStorage)
 
     private val gradingEngine = DefaultGradingEngine()

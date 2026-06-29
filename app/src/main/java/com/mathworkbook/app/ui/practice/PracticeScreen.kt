@@ -1,5 +1,6 @@
 package com.mathworkbook.app.ui.practice
 
+import android.webkit.WebView
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -17,6 +18,7 @@ import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -31,10 +33,12 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -56,12 +60,14 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.input.KeyboardType as ImeKeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mathworkbook.app.core.database.AnswerFieldEntity
 import com.mathworkbook.app.core.database.AttemptInputLogEntity
@@ -72,6 +78,8 @@ import com.mathworkbook.app.core.domain.FinalStatus
 import com.mathworkbook.app.core.domain.AnswerFieldType
 import com.mathworkbook.app.core.domain.AnswerType
 import com.mathworkbook.app.core.domain.ProblemType
+import com.mathworkbook.app.core.gpt.SavedGptExplanation
+import com.mathworkbook.app.core.gpt.parseGptExplanations
 import com.mathworkbook.app.ui.components.SolutionVectorPreview
 import com.mathworkbook.app.ui.components.SolutionVectorOverlay
 import com.mathworkbook.app.ui.components.HandwritingCanvas
@@ -83,6 +91,7 @@ import com.mathworkbook.app.ui.components.estimateWorksheetContentHeightDp
 import com.mathworkbook.app.ui.components.parseWorksheetImageTransform
 import com.mathworkbook.app.ui.components.parseProblemTeacherNotes
 import com.mathworkbook.app.ui.components.rememberHandwritingState
+import com.mathworkbook.app.ui.gpt.GptProblemContext
 import com.mathworkbook.app.ui.skin.LocalWorkbookSkin
 import com.mathworkbook.app.ui.skin.SkinAssetImage
 import kotlinx.coroutines.delay
@@ -114,6 +123,7 @@ fun PracticeScreen(
     initialProblemId: String? = null,
     initialAttemptId: String? = null,
     onProblemLocationChanged: (workbookId: String, chapterId: String, problemId: String) -> Unit = { _, _, _ -> },
+    onGptProblemContextChanged: (GptProblemContext?) -> Unit = {},
     onOpenProgress: () -> Unit = {},
     onInitialChapterHandled: () -> Unit = {},
     modifier: Modifier = Modifier
@@ -151,6 +161,21 @@ fun PracticeScreen(
         state.currentProblem?.let { problem ->
             onProblemLocationChanged(problem.workbookId, problem.chapterId, problem.problemId)
         }
+    }
+
+    LaunchedEffect(
+        state.currentProblem,
+        state.selectedWorkbook,
+        state.selectedChapter,
+        state.currentIndex,
+        state.problems.size,
+        state.fields,
+        state.rules,
+        state.choices,
+        state.inputByField,
+        state.selectedChoiceIds
+    ) {
+        onGptProblemContextChanged(state.toGptProblemContext())
     }
 
     LaunchedEffect(isMasterMode, state.currentProblem?.problemId) {
@@ -336,9 +361,7 @@ fun PracticeScreen(
                                     ) {
                                         when {
                                             isMasterMode && selectedStudentAttempt != null -> Unit
-                                            isMasterMode -> {
-                                                MasterCorrectSolutionFooter(state)
-                                            }
+                                            isMasterMode -> Unit
                                             answerInputMode == AnswerInputMode.FixedBottomCustomKeypad -> {
                                                 StudentAnswerStamp(state)
                                             }
@@ -365,6 +388,17 @@ fun PracticeScreen(
                                             logs = state.logsByAttempt[selectedStudentAttempt.attemptId].orEmpty(),
                                             fields = state.fields,
                                             modifier = Modifier.fillMaxWidth()
+                                        )
+                                    }
+                                } else if (isMasterMode) {
+                                    ProblemWorksheetFooterOverlay(
+                                        problem = state.currentProblem,
+                                        questionTextSizeSp = questionTextSizeSp,
+                                        modifier = Modifier.fillMaxSize()
+                                    ) {
+                                        MasterCorrectSolutionFooter(
+                                            state = state,
+                                            onDeleteGptExplanation = viewModel::deleteGptExplanation
                                         )
                                     }
                                 } else if (!isMasterMode && answerInputMode == AnswerInputMode.WorksheetInline) {
@@ -1065,6 +1099,8 @@ private fun MasterAnswerArea(
                 } else {
                     state.inputByField[field.answerFieldId].orEmpty()
                 }
+                val inputPrefix = field.inputPrefixForInput()
+                val inputSuffix = field.inputSuffixForInput()
                 if (!disabled) {
                     InlineChoiceSelector(
                         options = inlineChoiceOptionsFor(field, state.rules),
@@ -1087,6 +1123,8 @@ private fun MasterAnswerArea(
                     enabled = !disabled,
                     label = { Text(field.label) },
                     singleLine = true,
+                    prefix = inputPrefix.takeIf { it.isNotBlank() }?.let { text -> { Text(text) } },
+                    suffix = inputSuffix.takeIf { it.isNotBlank() }?.let { text -> { Text(text) } },
                     keyboardOptions = keyboardOptionsFor(field.fieldType),
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -1294,11 +1332,17 @@ private fun MasterAttemptInfoOverlay(
 }
 
 @Composable
-private fun MasterCorrectSolutionFooter(state: PracticeUiState) {
+private fun MasterCorrectSolutionFooter(
+    state: PracticeUiState,
+    onDeleteGptExplanation: (String) -> Unit
+) {
     val answerText = formatCurrentAnswer(state)
     val notes = parseProblemTeacherNotes(state.currentProblem)
+    val gptExplanations = remember(state.currentProblem?.imageCropRectJson) {
+        parseGptExplanations(state.currentProblem?.imageCropRectJson)
+    }
     val hintText = state.currentProblem?.hintText.orEmpty()
-    if (answerText.isBlank() && hintText.isBlank() && notes.isEmpty()) return
+    if (answerText.isBlank() && hintText.isBlank() && notes.isEmpty() && gptExplanations.isEmpty()) return
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -1324,8 +1368,237 @@ private fun MasterCorrectSolutionFooter(state: PracticeUiState) {
             if (hintText.isNotBlank()) {
                 Text("힌트: $hintText", color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
+            if (gptExplanations.isNotEmpty()) {
+                HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+                Text("GPT 저장 설명", color = Color(0xFF1D4ED8), fontWeight = FontWeight.SemiBold)
+                gptExplanations.forEach { explanation ->
+                    SavedGptExplanationItem(
+                        explanation = explanation,
+                        onDelete = { onDeleteGptExplanation(explanation.id) }
+                    )
+                }
+            }
         }
     }
+}
+
+@Composable
+private fun SavedGptExplanationItem(
+    explanation: SavedGptExplanation,
+    onDelete: () -> Unit
+) {
+    var showFullDialog by remember(explanation.id) { mutableStateOf(false) }
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFFEFF6FF)),
+        shape = RoundedCornerShape(8.dp)
+    ) {
+        Column(modifier = Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(explanation.title, color = Color(0xFF1E3A8A), fontWeight = FontWeight.SemiBold)
+                    Text(
+                        formatAttemptDate(explanation.savedAt.takeIf { it > 0L } ?: explanation.updatedAt),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Color(0xFF64748B)
+                    )
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    OutlinedButton(
+                        onClick = { showFullDialog = true },
+                        modifier = Modifier.height(32.dp),
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp)
+                    ) {
+                        Text("보기")
+                    }
+                    OutlinedButton(
+                        onClick = onDelete,
+                        modifier = Modifier.height(32.dp),
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp)
+                    ) {
+                        Text("삭제", color = Color(0xFFB91C1C))
+                    }
+                }
+            }
+            Text(
+                text = explanation.explanationText,
+                color = Color(0xFF172554),
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+    }
+    if (showFullDialog) {
+        AlertDialog(
+            onDismissRequest = { showFullDialog = false },
+            title = {
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(explanation.title, fontWeight = FontWeight.SemiBold)
+                    Text(
+                        formatAttemptDate(explanation.savedAt.takeIf { it > 0L } ?: explanation.updatedAt),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            },
+            text = {
+                if (explanation.explanationHtml.isNotBlank()) {
+                    GptExplanationHtmlView(
+                        html = explanation.explanationHtml,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 420.dp, max = 620.dp)
+                    )
+                } else {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 560.dp)
+                            .verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Text(explanation.explanationText, color = Color(0xFF111827))
+                        if (explanation.prompt.isNotBlank()) {
+                            HorizontalDivider()
+                            Text("프롬프트", style = MaterialTheme.typography.labelSmall, color = Color(0xFF64748B))
+                            Text(explanation.prompt, style = MaterialTheme.typography.bodySmall, color = Color(0xFF475569))
+                        }
+                    }
+                }
+            },
+            dismissButton = {
+                OutlinedButton(
+                    onClick = {
+                        showFullDialog = false
+                        onDelete()
+                    }
+                ) {
+                    Text("삭제", color = Color(0xFFB91C1C))
+                }
+            },
+            confirmButton = {
+                Button(onClick = { showFullDialog = false }) {
+                    Text("닫기")
+                }
+            }
+        )
+    }
+}
+
+@Composable
+private fun GptExplanationHtmlView(
+    html: String,
+    modifier: Modifier = Modifier
+) {
+    val context = LocalContext.current
+    AndroidView(
+        modifier = modifier,
+        factory = {
+            WebView(context).apply {
+                setBackgroundColor(android.graphics.Color.TRANSPARENT)
+                settings.javaScriptEnabled = false
+                settings.domStorageEnabled = false
+                settings.loadWithOverviewMode = true
+                settings.useWideViewPort = true
+                settings.builtInZoomControls = true
+                settings.displayZoomControls = false
+                loadDataWithBaseURL(
+                    "https://chatgpt.com/",
+                    gptExplanationDocument(html),
+                    "text/html",
+                    "UTF-8",
+                    null
+                )
+            }
+        },
+        update = { view ->
+            view.loadDataWithBaseURL(
+                "https://chatgpt.com/",
+                gptExplanationDocument(html),
+                "text/html",
+                "UTF-8",
+                null
+            )
+        }
+    )
+}
+
+private fun gptExplanationDocument(contentHtml: String): String {
+    return """
+        <!doctype html>
+        <html>
+        <head>
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <style>
+            :root { color-scheme: light; }
+            body {
+              margin: 0;
+              padding: 4px 2px 16px 2px;
+              background: transparent;
+              color: #111827;
+              font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+              font-size: 16px;
+              line-height: 1.62;
+              word-break: keep-all;
+              overflow-wrap: anywhere;
+            }
+            p { margin: 0 0 0.9em; }
+            strong, b { font-weight: 700; }
+            em { font-style: italic; }
+            h1, h2, h3, h4 { margin: 1em 0 0.45em; line-height: 1.25; }
+            h1 { font-size: 1.45em; }
+            h2 { font-size: 1.28em; }
+            h3 { font-size: 1.14em; }
+            ul, ol { margin: 0.5em 0 1em 1.35em; padding: 0; }
+            li { margin: 0.25em 0; }
+            code {
+              background: #f3f4f6;
+              border-radius: 5px;
+              padding: 0.08em 0.32em;
+              font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+              font-size: 0.92em;
+            }
+            pre {
+              background: #111827;
+              color: #f9fafb;
+              border-radius: 10px;
+              padding: 12px;
+              overflow-x: auto;
+              white-space: pre-wrap;
+            }
+            pre code { background: transparent; color: inherit; padding: 0; }
+            table {
+              border-collapse: collapse;
+              width: 100%;
+              margin: 0.75em 0;
+              font-size: 0.95em;
+            }
+            th, td {
+              border: 1px solid #d1d5db;
+              padding: 7px 8px;
+              vertical-align: top;
+            }
+            th { background: #f3f4f6; font-weight: 700; }
+            blockquote {
+              margin: 0.75em 0;
+              padding: 0.2em 0 0.2em 0.9em;
+              border-left: 4px solid #c7d2fe;
+              color: #374151;
+            }
+            .katex, .math, [class*="math"] { font-size: 1.04em; }
+          </style>
+        </head>
+        <body>
+          <main class="gpt-answer">
+            $contentHtml
+          </main>
+        </body>
+        </html>
+    """.trimIndent()
 }
 
 @Composable
@@ -1546,6 +1819,8 @@ private fun AnswerInputControls(
                     } else {
                         state.inputByField[field.answerFieldId].orEmpty()
                     }
+                    val inputPrefix = field.inputPrefixForInput()
+                    val inputSuffix = field.inputSuffixForInput()
                     if (!disabled) {
                         InlineChoiceSelector(
                             options = choiceOptions,
@@ -1568,6 +1843,8 @@ private fun AnswerInputControls(
                         enabled = !disabled,
                         label = { Text(field.label) },
                         singleLine = true,
+                        prefix = inputPrefix.takeIf { it.isNotBlank() }?.let { text -> { Text(text) } },
+                        suffix = inputSuffix.takeIf { it.isNotBlank() }?.let { text -> { Text(text) } },
                         keyboardOptions = if (useSystemKeyboard) {
                             keyboardOptionsFor(field.fieldType)
                         } else {
@@ -1922,6 +2199,50 @@ private fun formatCurrentAnswer(state: PracticeUiState): String {
     }
 }
 
+private fun PracticeUiState.toGptProblemContext(): GptProblemContext? {
+    val problem = currentProblem ?: return null
+    val notes = parseProblemTeacherNotes(problem)
+    val fieldLines = fields
+        .sortedBy { it.orderIndex }
+        .joinToString("\n") { field ->
+            val meta = answerFieldMeta(field)
+            val suffix = meta?.optString("displaySuffix")?.ifBlank { meta.optString("suffix") }.orEmpty()
+            val disabled = if (field.isDisabledForInput()) " / 비활성: ${field.disabledDisplayValue()}" else ""
+            "- ${field.label.ifBlank { field.answerFieldId }} (${field.fieldType})${
+                suffix.takeIf { it.isNotBlank() }?.let { " / 단위: $it" }.orEmpty()
+            }$disabled"
+        }
+    val choiceLines = choices
+        .sortedBy { it.orderIndex }
+        .joinToString("\n") { choice ->
+            "- ${choice.choiceText} (${choice.choiceValue})"
+        }
+    val noteLines = buildList {
+        notes.solutionText?.takeIf { it.isNotBlank() }?.let { add("풀이: $it") }
+        notes.expectedSummary?.takeIf { it.isNotBlank() }?.let { add("기준: $it") }
+        notes.answerNote?.takeIf { it.isNotBlank() }?.let { add("답안 메모: $it") }
+        notes.teacherMemo?.takeIf { it.isNotBlank() }?.let { add("교사용 메모: $it") }
+    }.joinToString("\n")
+    return GptProblemContext(
+        problemId = problem.problemId,
+        workbookTitle = selectedWorkbook?.title.orEmpty(),
+        chapterTitle = selectedChapter?.title.orEmpty(),
+        problemPosition = "${currentIndex + 1}/${problems.size.coerceAtLeast(1)}",
+        questionText = problem.questionText.orEmpty(),
+        imagePath = problem.imagePath,
+        fieldsSummary = fieldLines,
+        choicesSummary = choiceLines,
+        currentAnswer = formatTypedAnswer(this),
+        storedAnswer = rules
+            .map { it.correctAnswerRaw }
+            .filter { it.isNotBlank() }
+            .distinct()
+            .joinToString(", "),
+        teacherNotes = noteLines,
+        hintText = problem.hintText.orEmpty()
+    )
+}
+
 private fun formatTypedAnswer(state: PracticeUiState): String {
     return if (state.currentProblem?.problemType == ProblemType.MULTIPLE_CHOICE) {
         state.choices
@@ -2007,6 +2328,28 @@ private fun formatFieldAnswerValue(
 private fun answerFieldMeta(field: AnswerFieldEntity): JSONObject? {
     if (field.positionJson.isNullOrBlank()) return null
     return runCatching { JSONObject(field.positionJson.orEmpty()) }.getOrNull()
+}
+
+private fun AnswerFieldEntity.inputPrefixForInput(): String {
+    val meta = answerFieldMeta(this) ?: return ""
+    return meta.inputAffixForInput("showPrefixInInput", "inputPrefix", "displayPrefix", "prefix")
+}
+
+private fun AnswerFieldEntity.inputSuffixForInput(): String {
+    val meta = answerFieldMeta(this) ?: return ""
+    return meta.inputAffixForInput("showSuffixInInput", "inputSuffix", "displaySuffix", "suffix")
+}
+
+private fun JSONObject.inputAffixForInput(
+    showKey: String,
+    inputKey: String,
+    displayKey: String,
+    fallbackKey: String
+): String {
+    if (!optBoolean(showKey, false) && !optBoolean("showAffixInInput", false)) return ""
+    return optString(inputKey)
+        .ifBlank { optString(displayKey) }
+        .ifBlank { optString(fallbackKey) }
 }
 
 private fun AnswerFieldEntity.isDisabledForInput(): Boolean {

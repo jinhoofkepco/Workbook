@@ -17,6 +17,21 @@ android {
         versionName = "0.1.0"
     }
 
+    signingConfigs {
+        create("sharedDebug") {
+            storeFile = file("debug-shared.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
+    }
+
+    buildTypes {
+        debug {
+            signingConfig = signingConfigs.getByName("sharedDebug")
+        }
+    }
+
     buildFeatures {
         compose = true
     }

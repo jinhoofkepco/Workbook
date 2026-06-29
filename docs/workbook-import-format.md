@@ -110,9 +110,9 @@ workbook-copy.zip
 - 그림 파일이 해당 문제의 그림인지 확인
 - 정답이 있는 경우 `correctAnswerRaw` 확인
 
-## 답 표시 단위
+## 답 표시 단위와 입력칸 단위
 
-학생이 입력하고 채점하는 값은 숫자만 두고, 화면에 찍히는 파란 답 스탬프에는 단위를 붙일 수 있습니다.
+학생이 입력하고 채점하는 값은 숫자나 문자 값만 둡니다. `correctAnswerRaw`와 `normalizedAnswer`에는 단위, 접두어, 접미어를 넣지 않고, 화면에 붙여 보여 줄 내용은 답칸 메타데이터에 분리합니다.
 
 ```json
 {
@@ -120,12 +120,22 @@ workbook-copy.zip
   "label": "답",
   "fieldType": "NUMBER",
   "keyboardType": "NUMBER",
-  "suffix": "명",
-  "displaySuffix": "명"
+  "displaySuffix": "명",
+  "showSuffixInInput": true
 }
 ```
 
-학생이 `200`을 입력하면 채점은 `200`으로 하고, 학생 화면과 마스터 모드의 답 표시에는 `200명`으로 보입니다. `%`, `명`, `상자`처럼 답칸에 쓰게 하고 싶지 않은 단위는 이 방식으로 넣습니다.
+학생이 `200`을 입력하면 채점은 `200`으로 하고, 학생 화면과 마스터 모드의 답 표시에는 `200명`으로 보입니다. `showSuffixInInput`이 `true`이면 입력칸 안에도 `명`이 붙어 보여서 학생이 단위를 직접 입력하지 않아도 됩니다.
+
+사용할 수 있는 표시 메타데이터:
+
+- `displayPrefix`: 정답 표시 앞에 붙일 글자입니다. 예: `약 `
+- `displaySuffix`: 정답 표시 뒤에 붙일 글자입니다. 예: `일`, `cm`, `%`
+- `showPrefixInInput`: `displayPrefix`를 입력칸에도 보여 줄 때 `true`
+- `showSuffixInInput`: `displaySuffix`를 입력칸에도 보여 줄 때 `true`
+- `inputPrefix`, `inputSuffix`: 정답 표시와 입력칸 표시를 다르게 해야 할 때만 쓰는 입력칸 전용 표시값입니다.
+
+새로 생성하는 JSON은 `label`에 단위를 중복해서 넣지 않습니다. 예를 들어 답이 `4일`이면 `label`은 `답` 또는 빈 문자열로 두고, `correctAnswerRaw`는 `4`, `displaySuffix`는 `일`, `showSuffixInInput`은 `true`로 둡니다.
 
 여러 답칸이 있는 문제는 각 필드마다 `label`과 `displaySuffix`를 둡니다.
 
@@ -137,14 +147,16 @@ workbook-copy.zip
       "label": "미국",
       "fieldType": "NUMBER",
       "keyboardType": "NUMBER",
-      "displaySuffix": "%"
+      "displaySuffix": "%",
+      "showSuffixInInput": true
     },
     {
       "answerFieldId": "p005-china",
       "label": "중국",
       "fieldType": "NUMBER",
       "keyboardType": "NUMBER",
-      "displaySuffix": "%"
+      "displaySuffix": "%",
+      "showSuffixInInput": true
     }
   ],
   "answerRules": [
@@ -169,6 +181,49 @@ workbook-copy.zip
 ```
 
 이 경우 파란 답 스탬프에는 `미국 20%, 중국 35%`처럼 표시됩니다.
+
+시간처럼 한 답에 여러 단위가 붙는 경우에는 값마다 답칸을 나눕니다.
+
+```json
+{
+  "answerFields": [
+    {
+      "answerFieldId": "p008-hour",
+      "label": "",
+      "fieldType": "NUMBER",
+      "keyboardType": "NUMBER",
+      "displaySuffix": "시간",
+      "showSuffixInInput": true
+    },
+    {
+      "answerFieldId": "p008-minute",
+      "label": "",
+      "fieldType": "NUMBER",
+      "keyboardType": "NUMBER",
+      "displaySuffix": "분",
+      "showSuffixInInput": true
+    }
+  ],
+  "answerRules": [
+    {
+      "answerRuleId": "p008-r-hour",
+      "answerFieldId": "p008-hour",
+      "answerType": "INTEGER",
+      "correctAnswerRaw": "13",
+      "normalizedAnswer": "13"
+    },
+    {
+      "answerRuleId": "p008-r-minute",
+      "answerFieldId": "p008-minute",
+      "answerType": "INTEGER",
+      "correctAnswerRaw": "30",
+      "normalizedAnswer": "30"
+    }
+  ]
+}
+```
+
+이 경우 학생은 `13`, `30`만 입력하고, 입력칸과 정답 표시에는 각각 `13시간`, `30분`처럼 보입니다.
 
 ## 비활성 안내 답칸
 
@@ -299,6 +354,33 @@ workbook-copy.zip
 ## 사진 위 수정
 
 문제 전체 사진이 흐리거나 그림 설명을 보강해야 하면 마스터 모드에서 사진 위에 펜으로 표시한 뒤 `사진에 합쳐 저장`을 누릅니다. 앱은 현재 사진과 마스터 노트를 합쳐 새 문제 이미지로 저장하고, 기존 마스터 노트는 비워 둡니다.
+
+## GPT 저장 설명
+
+외부에서 GPT 설명을 미리 넣어둘 때는 문제 객체 최상위에 `workbookApp.gptExplanations`를 넣는 방식을 권장합니다. ZIP을 다시 가져오면 앱 안에서 저장한 설명과 외부 JSON 설명을 `id` 기준으로 합쳐 보여줍니다. 같은 `id`가 있으면 외부 JSON 값이 우선합니다.
+
+```json
+{
+  "problemId": "p001",
+  "questionText": "",
+  "imagePath": "images/p001.png",
+  "workbookApp": {
+    "gptExplanations": [
+      {
+        "id": "gpt-p001-note-1",
+        "title": "자리값과 곱의 성질",
+        "prompt": "이 문제를 학생에게 설명해줘.",
+        "explanationText": "검색과 미리보기용 순수 텍스트입니다.",
+        "explanationHtml": "<p><strong>자리값</strong>을 먼저 비교합니다.</p><ol><li>큰 곱은 큰 수끼리 균형 있게 배치합니다.</li></ol>",
+        "savedAt": 1781940000000,
+        "updatedAt": 1781940000000
+      }
+    ]
+  }
+}
+```
+
+기존 내부 layout JSON 형태를 직접 만들 때는 `imageCropRectJson.workbookApp.gptExplanations`에 넣어도 됩니다. 다만 생성 프롬프트에는 최상위 `workbookApp` 방식을 쓰는 편이 덜 헷갈립니다.
 
 ## enum 값
 

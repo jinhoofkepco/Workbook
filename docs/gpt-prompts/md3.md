@@ -11,7 +11,10 @@
 6. 글자가 확실하지 않으면 절대 고치지 말고 `NEEDS_REVIEW`를 넣는다.
 
 답 입력 UI 규칙:
-- 단위는 학생이 직접 쓰게 하지 말고 `answerFields[].displaySuffix` 또는 `suffix`에 넣는다. 예: 답이 `200명`이면 정답값은 `200`, suffix는 `명`.
+- `correctAnswerRaw`와 `normalizedAnswer`에는 학생이 입력할 값만 넣는다. 단위, 접두어, 접미어를 답값에 섞지 않는다.
+- 단위/접두어는 `answerFields[].displayPrefix`/`displaySuffix`에 넣고, 입력칸에도 보여야 하면 `showPrefixInInput`/`showSuffixInInput`을 `true`로 둔다. 예: 답이 `200명`이면 정답값은 `200`, `displaySuffix`는 `명`, `showSuffixInInput`은 `true`.
+- `13시간 30분`처럼 단위가 다른 값은 한 칸에 합치지 말고 `13` 칸과 `30` 칸으로 나눈다. 각 칸의 `displaySuffix`는 `시간`, `분`으로 두고 `showSuffixInInput`을 `true`로 둔다.
+- `label`에는 단위를 중복하지 않는다. 예: `label: "시간"`과 `displaySuffix: "시간"`을 동시에 쓰지 않는다.
 - 대분수는 가능하면 한 칸 TEXT로 받지 말고 `자연수`, `분자`, `분모` 숫자칸으로 나눈다. 예: `3 2/7`은 `3`, `2`, `7`.
 - 보기에서 고르는 문제는 직접 타이핑시키지 말고 `choiceOptions`를 넣는다. 모두 고르기 문제는 `choiceMultiSelect: true`를 넣는다.
 - 그래프 작성, 표 완성, 작도, 식 만들기처럼 노트에 직접 써야 하는 문제는 자동채점하지 않는다. `gradingPolicy.mode`는 `manual_review`, `skipOnSubmit`은 `true`로 둔다.

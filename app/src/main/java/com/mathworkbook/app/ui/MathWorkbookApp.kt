@@ -45,6 +45,10 @@ import com.mathworkbook.app.ui.dashboard.DashboardViewModelFactory
 import com.mathworkbook.app.ui.exam.ExamScreen
 import com.mathworkbook.app.ui.exam.ExamViewModel
 import com.mathworkbook.app.ui.exam.ExamViewModelFactory
+import com.mathworkbook.app.ui.gpt.DefaultGptPrompt
+import com.mathworkbook.app.ui.gpt.GptAssistPanel
+import com.mathworkbook.app.ui.gpt.GptProblemContext
+import com.mathworkbook.app.ui.gpt.GptPromptDialog
 import com.mathworkbook.app.ui.master.MasterToolAction
 import com.mathworkbook.app.ui.master.MasterToolLayer
 import com.mathworkbook.app.ui.master.MasterViewModel
@@ -73,14 +77,21 @@ fun MathWorkbookApp(container: AppContainer) {
 
     var selectedTab by remember { mutableStateOf(RootTab.Dashboard) }
     var problemMode by remember { mutableStateOf(ProblemMode.Practice) }
-    var isMasterMode by remember { mutableStateOf(false) }
-    var masterUnlockedThisRun by remember { mutableStateOf(false) }
+    var isMasterMode by remember { mutableStateOf(true) }
+    var masterUnlockedThisRun by remember { mutableStateOf(true) }
     var showMasterLogin by remember { mutableStateOf(false) }
     var keepMasterLogin by remember { mutableStateOf(false) }
     var pin by remember { mutableStateOf("") }
     var pinError by remember { mutableStateOf<String?>(null) }
     var toolsExpanded by remember { mutableStateOf(false) }
     var activeMasterTool by remember { mutableStateOf<MasterToolAction?>(null) }
+    var showGptPanel by remember { mutableStateOf(false) }
+    var showGptPromptDialog by remember { mutableStateOf(false) }
+    var gptSendNonce by remember { mutableIntStateOf(0) }
+    var gptProblemContext by remember { mutableStateOf<GptProblemContext?>(null) }
+    var gptPrompt by remember {
+        mutableStateOf(container.appPreferences.getString(PREF_GPT_PROMPT, DefaultGptPrompt) ?: DefaultGptPrompt)
+    }
     var dashboardRefreshKey by remember { mutableIntStateOf(0) }
     var pendingPracticeWorkbookId by remember { mutableStateOf<String?>(null) }
     var pendingPracticeChapterId by remember { mutableStateOf<String?>(null) }
@@ -107,6 +118,7 @@ fun MathWorkbookApp(container: AppContainer) {
         problemMode = ProblemMode.Practice
         selectedTab = RootTab.Problem
         activeMasterTool = null
+        showGptPanel = false
         toolsExpanded = false
     }
 
@@ -114,6 +126,7 @@ fun MathWorkbookApp(container: AppContainer) {
         if (isMasterMode) {
             isMasterMode = false
             toolsExpanded = false
+            showGptPanel = false
         } else if (masterUnlockedThisRun) {
             isMasterMode = true
         } else {
@@ -130,6 +143,7 @@ fun MathWorkbookApp(container: AppContainer) {
     MaterialTheme {
         CompositionLocalProvider(LocalWorkbookSkin provides skinState.activeSkin) {
         val masterViewModel: MasterViewModel = viewModel(factory = MasterViewModelFactory(container))
+        val practiceViewModel: PracticeViewModel = viewModel(factory = PracticeViewModelFactory(container))
         Box(modifier = Modifier.fillMaxSize()) {
             Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
                 Column(modifier = Modifier.fillMaxSize()) {
@@ -167,11 +181,8 @@ fun MathWorkbookApp(container: AppContainer) {
                         RootTab.Problem -> {
                             when (problemMode) {
                                 ProblemMode.Practice -> {
-                                    val viewModel: PracticeViewModel = viewModel(
-                                        factory = PracticeViewModelFactory(container)
-                                    )
                                     PracticeScreen(
-                                        viewModel = viewModel,
+                                        viewModel = practiceViewModel,
                                         isMasterMode = isMasterMode,
                                         questionTextSizeSp = questionTextSizeSp,
                                         initialWorkbookId = pendingPracticeWorkbookId,
@@ -183,9 +194,13 @@ fun MathWorkbookApp(container: AppContainer) {
                                             currentChapterId = chapterId
                                             currentProblemId = problemId
                                         },
+                                        onGptProblemContextChanged = { context ->
+                                            gptProblemContext = context
+                                        },
                                         onOpenProgress = {
                                             selectedTab = RootTab.Dashboard
                                             activeMasterTool = null
+                                            showGptPanel = false
                                             toolsExpanded = false
                                         },
                                         onInitialChapterHandled = {
@@ -216,12 +231,22 @@ fun MathWorkbookApp(container: AppContainer) {
                     BottomMenu(
                         isMasterMode = isMasterMode,
                         toolsExpanded = toolsExpanded,
+                        currentTab = selectedTab,
                         onToggleTools = {
                             toolsExpanded = !toolsExpanded
                         },
                         onSelectTool = { tool ->
                             activeMasterTool = tool
                             toolsExpanded = false
+                        },
+                        onOpenGpt = {
+                            selectedTab = RootTab.Problem
+                            activeMasterTool = null
+                            showGptPanel = true
+                            gptSendNonce += 1
+                        },
+                        onOpenGptPrompt = {
+                            showGptPromptDialog = true
                         },
                         onToggleMasterMode = ::toggleMasterMode
                     )
@@ -242,8 +267,23 @@ fun MathWorkbookApp(container: AppContainer) {
                     examLaunchKey += 1
                     selectedTab = RootTab.Problem
                     activeMasterTool = null
+                    showGptPanel = false
                 }
             )
+
+            if (showGptPanel && isMasterMode && selectedTab == RootTab.Problem && problemMode == ProblemMode.Practice) {
+                GptAssistPanel(
+                    gateway = container.gptGateway,
+                    prompt = gptPrompt,
+                    problemContext = gptProblemContext,
+                    sendNonce = gptSendNonce,
+                    onSaveExplanation = practiceViewModel::saveGptExplanation,
+                    onDismiss = { showGptPanel = false },
+                    modifier = Modifier
+                        .align(Alignment.Center)
+                        .padding(start = 16.dp, top = 56.dp, end = 16.dp, bottom = 72.dp)
+                )
+            }
         }
         }
     }
@@ -294,9 +334,23 @@ fun MathWorkbookApp(container: AppContainer) {
             }
         )
     }
+
+    if (showGptPromptDialog) {
+        GptPromptDialog(
+            initialPrompt = gptPrompt,
+            onDismiss = { showGptPromptDialog = false },
+            onSave = { value ->
+                val saved = value.ifBlank { DefaultGptPrompt }
+                gptPrompt = saved
+                container.appPreferences.edit().putString(PREF_GPT_PROMPT, saved).apply()
+                showGptPromptDialog = false
+            }
+        )
+    }
 }
 
 private const val PREF_PROBLEM_TEXT_SIZE_SP = "problem_text_size_sp"
+private const val PREF_GPT_PROMPT = "gpt_assist_prompt"
 private const val DEFAULT_PROBLEM_TEXT_SIZE_SP = 24
 private const val MIN_PROBLEM_TEXT_SIZE_SP = 18
 private const val MAX_PROBLEM_TEXT_SIZE_SP = 36
@@ -305,8 +359,11 @@ private const val MAX_PROBLEM_TEXT_SIZE_SP = 36
 private fun BottomMenu(
     isMasterMode: Boolean,
     toolsExpanded: Boolean,
+    currentTab: RootTab,
     onToggleTools: () -> Unit,
     onSelectTool: (MasterToolAction) -> Unit,
+    onOpenGpt: () -> Unit,
+    onOpenGptPrompt: () -> Unit,
     onToggleMasterMode: () -> Unit
 ) {
     Surface(
@@ -331,6 +388,8 @@ private fun BottomMenu(
                         RoundToolButton("ZIP") { onSelectTool(MasterToolAction.Import) }
                         RoundToolButton("로그") { onSelectTool(MasterToolAction.Logs) }
                     }
+                    RoundToolButton("g", selected = currentTab == RootTab.Problem, onClick = onOpenGpt)
+                    RoundToolButton("gp", onClick = onOpenGptPrompt)
                     RoundToolButton(if (toolsExpanded) "닫기" else "도구", selected = toolsExpanded, onClick = onToggleTools)
                 }
                 RoundToolButton(

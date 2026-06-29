@@ -14,6 +14,7 @@
 - 각 문제는 `problemId`, `chapterId`, `problemType`, `questionText`, `imagePath`, `imageDisplayJson`, `orderIndex`, `answerFields`, `answerRules`를 포함한다.
 - 도형을 그리는 문제는 `problemType: "MANUAL_ONLY"`로 하고 자동채점하지 않는다.
 - `answerRules`에는 `answerType: "MANUAL"`, `manualGradingRequired: true`를 넣는다.
+- 자동채점 답칸이 필요한 경우 `correctAnswerRaw`와 `normalizedAnswer`에는 학생이 입력할 값만 넣는다. 단위/접두어는 `answerFields[].displayPrefix`/`displaySuffix`로 분리하고, 입력칸에도 보여야 하면 `showPrefixInInput`/`showSuffixInInput`을 `true`로 둔다.
 
 이미지 지침:
 - 문제 이미지는 문장 전체가 아니라 도형/격자/보기/빈칸 영역 중심으로 자른다.

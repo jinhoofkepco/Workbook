@@ -39,6 +39,7 @@ import com.mathworkbook.app.ui.components.HandwritingState
 import com.mathworkbook.app.ui.components.ProblemWorksheetBackground
 import com.mathworkbook.app.ui.components.estimateWorksheetContentHeightDp
 import com.mathworkbook.app.ui.components.rememberHandwritingState
+import org.json.JSONObject
 
 @Composable
 fun ExamScreen(
@@ -222,11 +223,15 @@ private fun ExamAnswerInputs(state: ExamUiState, viewModel: ExamViewModel, readO
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         state.fields.filterNot { it.fieldType.isWorksheetOnlyField() }.forEach { field ->
+            val inputPrefix = answerFieldInputPrefix(field.positionJson)
+            val inputSuffix = answerFieldInputSuffix(field.positionJson)
             OutlinedTextField(
                 value = state.answers["${state.currentProblem?.problemId}:${field.answerFieldId}"].orEmpty(),
                 onValueChange = { if (!readOnly) viewModel.updateInput(field.answerFieldId, it) },
                 label = { Text(field.label) },
                 readOnly = readOnly,
+                prefix = inputPrefix.takeIf { it.isNotBlank() }?.let { text -> { Text(text) } },
+                suffix = inputSuffix.takeIf { it.isNotBlank() }?.let { text -> { Text(text) } },
                 keyboardOptions = keyboardOptionsFor(field.fieldType),
                 modifier = Modifier.fillMaxWidth()
             )
@@ -246,6 +251,35 @@ private fun keyboardOptionsFor(fieldType: AnswerFieldType): KeyboardOptions {
 
 private fun AnswerFieldType.isWorksheetOnlyField(): Boolean {
     return this == AnswerFieldType.DRAWING || this == AnswerFieldType.TABLE
+}
+
+private fun answerFieldInputPrefix(positionJson: String?): String {
+    return answerFieldMeta(positionJson)
+        ?.inputAffixForInput("showPrefixInInput", "inputPrefix", "displayPrefix", "prefix")
+        .orEmpty()
+}
+
+private fun answerFieldInputSuffix(positionJson: String?): String {
+    return answerFieldMeta(positionJson)
+        ?.inputAffixForInput("showSuffixInInput", "inputSuffix", "displaySuffix", "suffix")
+        .orEmpty()
+}
+
+private fun answerFieldMeta(positionJson: String?): JSONObject? {
+    if (positionJson.isNullOrBlank()) return null
+    return runCatching { JSONObject(positionJson) }.getOrNull()
+}
+
+private fun JSONObject.inputAffixForInput(
+    showKey: String,
+    inputKey: String,
+    displayKey: String,
+    fallbackKey: String
+): String {
+    if (!optBoolean(showKey, false) && !optBoolean("showAffixInInput", false)) return ""
+    return optString(inputKey)
+        .ifBlank { optString(displayKey) }
+        .ifBlank { optString(fallbackKey) }
 }
 
 @Composable

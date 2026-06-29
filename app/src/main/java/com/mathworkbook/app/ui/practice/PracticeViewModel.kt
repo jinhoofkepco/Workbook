@@ -19,6 +19,8 @@ import com.mathworkbook.app.core.domain.KeyboardType
 import com.mathworkbook.app.core.domain.ManualReviewStatus
 import com.mathworkbook.app.core.domain.ProblemType
 import com.mathworkbook.app.core.files.FileStorage
+import com.mathworkbook.app.core.gpt.addGptExplanationToImageCropJson
+import com.mathworkbook.app.core.gpt.deleteGptExplanationFromImageCropJson
 import com.mathworkbook.app.core.usecase.SubmitPracticeAnswerUseCase
 import com.mathworkbook.app.core.viewer.ViewerCurrentScreenSnapshot
 import kotlinx.coroutines.delay
@@ -580,6 +582,36 @@ class PracticeViewModel(
                 )
             }
         }
+    }
+
+    fun saveGptExplanation(prompt: String, explanationText: String, explanationHtml: String) {
+        val problem = _state.value.currentProblem ?: return
+        if (explanationText.isBlank()) {
+            _state.update { it.copy(feedback = "저장할 GPT 설명이 없습니다.") }
+            return
+        }
+        val (mergedJson, _) = addGptExplanationToImageCropJson(
+            imageCropRectJson = problem.imageCropRectJson,
+            prompt = prompt,
+            explanationText = explanationText,
+            explanationHtml = explanationHtml
+        )
+        saveUpdatedProblem(
+            problem.copy(imageCropRectJson = mergedJson, updatedAt = System.currentTimeMillis()),
+            "GPT 설명을 저장했습니다."
+        )
+    }
+
+    fun deleteGptExplanation(explanationId: String) {
+        val problem = _state.value.currentProblem ?: return
+        val mergedJson = deleteGptExplanationFromImageCropJson(
+            imageCropRectJson = problem.imageCropRectJson,
+            explanationId = explanationId
+        )
+        saveUpdatedProblem(
+            problem.copy(imageCropRectJson = mergedJson, updatedAt = System.currentTimeMillis()),
+            "GPT 설명을 삭제했습니다."
+        )
     }
 
     private fun saveUpdatedProblem(problem: ProblemEntity, message: String) {

@@ -14,6 +14,8 @@ import com.mathworkbook.app.core.domain.AnswerFieldType
 import com.mathworkbook.app.core.domain.AnswerType
 import com.mathworkbook.app.core.domain.ProblemType
 import com.mathworkbook.app.core.domain.UnitType
+import com.mathworkbook.app.core.gpt.mergeWorkbookAppIntoLayoutJson
+import com.mathworkbook.app.core.gpt.mergeWorkbookAppNamespace
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
@@ -121,7 +123,11 @@ class WorkbookImportService(
             fileStorage.saveImportedAsset(workbookId, sourceEntryPath, bytes)
         }
         val maskOverlay = problemJson.opt("maskOverlayJson")?.toJsonString()
-        val imageLayoutJson = buildImageLayoutJson(problemJson)
+        val existingProblem = dao.getProblem(problemId)
+        val imageLayoutJson = mergeWorkbookAppNamespace(
+            newImageCropRectJson = buildImageLayoutJson(problemJson),
+            existingImageCropRectJson = existingProblem?.imageCropRectJson
+        )
 
         dao.upsertProblem(
             ProblemEntity(
@@ -292,17 +298,54 @@ class WorkbookImportService(
         val solutionText = problemJson.optString("solutionText").ifBlank { null }
         val teacherMemo = problemJson.optString("teacherMemo").ifBlank { null }
         val answerNote = problemJson.optString("answerNote").ifBlank { null }
-        if (crop == null && display == null && gradingPolicy == null && solutionText == null && teacherMemo == null && answerNote == null) {
+        val workbookApp = problemJson.optJSONObject("workbookApp")
+        val gptExplanations = problemJson.optJSONArray("gptExplanations")
+        if (
+            crop == null &&
+            display == null &&
+            gradingPolicy == null &&
+            solutionText == null &&
+            teacherMemo == null &&
+            answerNote == null &&
+            workbookApp == null &&
+            gptExplanations == null
+        ) {
             return null
         }
         val root = JSONObject()
-        if (crop != null) root.put("crop", crop)
+        if (crop is JSONObject && crop.isWorkbookLayoutJson()) {
+            crop.copyInto(root)
+        } else if (crop != null) {
+            root.put("crop", crop)
+        }
         if (display != null) root.put("display", display)
         if (gradingPolicy != null) root.put("gradingPolicy", gradingPolicy)
         if (solutionText != null) root.put("solutionText", solutionText)
         if (teacherMemo != null) root.put("teacherMemo", teacherMemo)
         if (answerNote != null) root.put("answerNote", answerNote)
-        return root.toString()
+        return mergeWorkbookAppIntoLayoutJson(
+            imageCropRectJson = root.toString(),
+            workbookAppJson = workbookApp,
+            gptExplanationsJson = gptExplanations
+        )
+    }
+
+    private fun JSONObject.isWorkbookLayoutJson(): Boolean {
+        return has("crop") ||
+            has("display") ||
+            has("gradingPolicy") ||
+            has("solutionText") ||
+            has("teacherMemo") ||
+            has("answerNote") ||
+            has("workbookApp")
+    }
+
+    private fun JSONObject.copyInto(target: JSONObject) {
+        val keys = keys()
+        while (keys.hasNext()) {
+            val key = keys.next()
+            target.put(key, get(key))
+        }
     }
 
     private fun buildAnswerFieldMetaJson(field: JSONObject): String? {
@@ -321,6 +364,11 @@ class WorkbookImportService(
             "displayPrefix",
             "suffix",
             "displaySuffix",
+            "inputPrefix",
+            "inputSuffix",
+            "showPrefixInInput",
+            "showSuffixInInput",
+            "showAffixInInput",
             "disabled",
             "readOnly",
             "displayValue",
