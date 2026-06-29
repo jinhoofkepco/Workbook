@@ -1,5 +1,6 @@
 package com.mathworkbook.app.core
 
+import android.content.Context
 import com.mathworkbook.app.core.database.AnswerFieldEntity
 import com.mathworkbook.app.core.database.AnswerRuleEntity
 import com.mathworkbook.app.core.database.AppSettingsEntity
@@ -15,12 +16,23 @@ import com.mathworkbook.app.core.domain.AnswerFieldType
 import com.mathworkbook.app.core.domain.AnswerType
 import com.mathworkbook.app.core.domain.ProblemType
 import com.mathworkbook.app.core.domain.UnitType
+import com.mathworkbook.app.core.files.SCAN_MVP_ASSET_MANIFEST
+import com.mathworkbook.app.core.files.SCAN_MVP_WORKBOOK_ID
+import com.mathworkbook.app.core.files.WorkbookManifestType
+import com.mathworkbook.app.core.files.detectWorkbookManifestType
 import org.json.JSONArray
+import org.json.JSONObject
 
-class SeedData(private val dao: MathDao) {
+class SeedData(
+    private val context: Context,
+    private val dao: MathDao
+) {
     suspend fun ensure() {
-        if (dao.getAllProblemsOnce().isNotEmpty()) return
         val now = System.currentTimeMillis()
+        val hasExistingProblems = dao.getAllProblemsOnce().isNotEmpty()
+        ensureScanWorkbookMvp(now)
+        if (hasExistingProblems) return
+
         val workbookId = "workbook-demo"
         val chapterId = "chapter-demo-1"
 
@@ -223,5 +235,141 @@ class SeedData(private val dao: MathDao) {
             ChoiceEntity("choice-3", "problem-choice", "0.5", "0.5", true, 3),
             ChoiceEntity("choice-4", "problem-choice", "3/5", "3/5", false, 4)
         ).forEach { dao.upsertChoice(it) }
+    }
+
+    private suspend fun ensureScanWorkbookMvp(now: Long) {
+        runCatching {
+            val root = context.assets.open(SCAN_MVP_ASSET_MANIFEST).use { input ->
+                JSONObject(input.bufferedReader(Charsets.UTF_8).readText())
+            }
+            if (detectWorkbookManifestType(root) != WorkbookManifestType.ScanPageCoordinates) return
+
+            val workbookObject = root.optJSONObject("workbook")
+            val workbookId = workbookObject
+                ?.optString("workbookId")
+                ?.ifBlank { SCAN_MVP_WORKBOOK_ID }
+                ?: SCAN_MVP_WORKBOOK_ID
+            val title = root.optString("title")
+                .ifBlank { workbookObject?.optString("title").orEmpty() }
+                .ifBlank { "스캔 문제집" }
+            val chapterId = "$workbookId-scan-pages"
+
+            dao.upsertWorkbook(
+                WorkbookEntity(
+                    workbookId = workbookId,
+                    title = title,
+                    description = "스캔 원본 위에 답칸을 얹어 푸는 문제집",
+                    grade = "",
+                    subject = "math",
+                    createdAt = now,
+                    updatedAt = now,
+                    version = workbookObject?.optInt("version", 1) ?: 1
+                )
+            )
+            dao.upsertChapter(
+                ChapterEntity(
+                    chapterId = chapterId,
+                    workbookId = workbookId,
+                    title = "스캔 페이지",
+                    orderIndex = 1
+                )
+            )
+
+            var orderIndex = 1
+            val pages = root.getJSONArray("pages")
+            for (pageIndex in 0 until pages.length()) {
+                val pageJson = pages.getJSONObject(pageIndex)
+                val pageNumber = pageJson.optInt("pageNumber", pageIndex + 1)
+                val pageId = pageJson.getString("pageId")
+                val assetPath = pageJson.optString("assetPath")
+                val problems = pageJson.getJSONArray("problems")
+                for (problemIndex in 0 until problems.length()) {
+                    val problemJson = problems.getJSONObject(problemIndex)
+                    val problemId = problemJson.optString("problemId")
+                        .ifBlank { "$pageId-problem-${problemIndex + 1}" }
+                    val label = problemJson.optString("label").ifBlank { "문제 ${problemIndex + 1}" }
+                    dao.upsertProblem(
+                        ProblemEntity(
+                            problemId = problemId,
+                            workbookId = workbookId,
+                            chapterId = chapterId,
+                            problemType = ProblemType.IMAGE_BASED,
+                            questionText = "${pageNumber}쪽 $label",
+                            questionLatex = null,
+                            imagePath = assetPath,
+                            sourcePageImagePath = assetPath,
+                            imageCropRectJson = null,
+                            maskOverlayJson = null,
+                            difficulty = null,
+                            orderIndex = orderIndex++,
+                            hintText = null,
+                            hasGenerationTemplate = false,
+                            createdAt = now,
+                            updatedAt = now
+                        )
+                    )
+
+                    val answerFields = problemJson.getJSONArray("answerFields")
+                    for (fieldIndex in 0 until answerFields.length()) {
+                        val fieldJson = answerFields.getJSONObject(fieldIndex)
+                        val fieldId = fieldJson.optString("fieldId")
+                            .ifBlank { "$problemId-answer-${fieldIndex + 1}" }
+                        val answer = fieldJson.optString("answer")
+                        val answerType = inferScanAnswerType(answer)
+                        dao.upsertAnswerField(
+                            AnswerFieldEntity(
+                                answerFieldId = fieldId,
+                                problemId = problemId,
+                                label = fieldJson.optString("label", "답"),
+                                fieldType = answerType.toAnswerFieldType(),
+                                orderIndex = fieldIndex + 1,
+                                positionJson = null,
+                                required = true
+                            )
+                        )
+                        dao.upsertAnswerRule(
+                            AnswerRuleEntity(
+                                answerRuleId = "$fieldId-rule",
+                                problemId = problemId,
+                                answerFieldId = fieldId,
+                                answerType = answerType,
+                                correctAnswerRaw = answer,
+                                normalizedAnswer = answer.trim().replace(",", ""),
+                                allowEquivalentFraction = answerType == AnswerType.FRACTION,
+                                requireSimplifiedFraction = false,
+                                decimalTolerance = null,
+                                allowMultipleAnswers = false,
+                                acceptedAnswersJson = null,
+                                unitType = UnitType.NONE,
+                                manualGradingRequired = false
+                            )
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    private fun inferScanAnswerType(answer: String): AnswerType {
+        val cleaned = answer.trim().replace(",", "")
+        return when {
+            "/" in answer -> AnswerType.FRACTION
+            cleaned.toLongOrNull() != null -> AnswerType.INTEGER
+            cleaned.toDoubleOrNull() != null -> AnswerType.DECIMAL
+            else -> AnswerType.TEXT
+        }
+    }
+
+    private fun AnswerType.toAnswerFieldType(): AnswerFieldType {
+        return when (this) {
+            AnswerType.INTEGER,
+            AnswerType.DECIMAL,
+            AnswerType.PERCENT,
+            AnswerType.UNIT_VALUE -> AnswerFieldType.NUMBER
+            AnswerType.FRACTION -> AnswerFieldType.FRACTION
+            AnswerType.MONEY -> AnswerFieldType.MONEY
+            AnswerType.ANGLE -> AnswerFieldType.ANGLE
+            else -> AnswerFieldType.TEXT
+        }
     }
 }

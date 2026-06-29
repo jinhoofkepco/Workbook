@@ -44,5 +44,5 @@ class AppContainer(context: Context) {
         similarProblemQueueService = similarProblemQueueService
     )
 
-    val seedData = SeedData(dao)
+    val seedData = SeedData(context.applicationContext, dao)
 }

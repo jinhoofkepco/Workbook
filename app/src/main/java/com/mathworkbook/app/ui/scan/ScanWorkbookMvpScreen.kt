@@ -2,28 +2,29 @@ package com.mathworkbook.app.ui.scan
 
 import android.content.Context
 import android.graphics.BitmapFactory
+import android.view.MotionEvent
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectDragGestures
-import androidx.compose.foundation.gestures.detectTransformGestures
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.RowScope
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -44,21 +45,28 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.graphics.drawscope.rotate
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInteropFilter
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -66,28 +74,40 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
+import com.mathworkbook.app.core.AppContainer
+import com.mathworkbook.app.core.files.SCAN_MVP_WORKBOOK_ID
 import com.mathworkbook.app.core.files.WorkbookManifestType
 import com.mathworkbook.app.core.files.detectWorkbookManifestType
 import com.mathworkbook.app.ui.skin.LocalWorkbookSkin
 import com.mathworkbook.app.ui.skin.SkinAssetImage
+import kotlinx.coroutines.launch
 import org.json.JSONArray
 import org.json.JSONObject
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
+import kotlin.math.sqrt
 
 @Composable
 fun ScanWorkbookMvpScreen(
+    container: AppContainer,
+    workbookId: String = SCAN_MVP_WORKBOOK_ID,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
-    val workbook = remember { loadScanWorkbookMvp(context) }
+    val scope = rememberCoroutineScope()
+    val workbook = remember(workbookId) { loadScanWorkbookMvp(context, workbookId) }
     var pageIndex by remember { mutableIntStateOf(0) }
-    var inkEnabled by remember { mutableStateOf(false) }
+    var answerPanelExpanded by remember { mutableStateOf(true) }
+    var currentTool by remember { mutableStateOf(ScanDrawingTools.first()) }
+    var lastDrawingTool by remember { mutableStateOf(ScanDrawingTools.first()) }
+    var penWidth by remember { mutableStateOf(ScanPenWidthOptions.first()) }
+    var toolMenuExpanded by remember { mutableStateOf(false) }
     var answers by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
     var grades by remember { mutableStateOf<Map<String, Boolean>>(emptyMap()) }
+    var submittingFields by remember { mutableStateOf<Set<String>>(emptySet()) }
     var strokesByPage by remember { mutableStateOf<Map<String, List<ScanInkStroke>>>(emptyMap()) }
-    var activeStroke by remember { mutableStateOf<List<Offset>>(emptyList()) }
+    var activeStroke by remember { mutableStateOf<ScanInkStroke?>(null) }
     var message by remember { mutableStateOf<String?>(null) }
 
     val page = workbook.pages[pageIndex]
@@ -97,40 +117,45 @@ fun ScanWorkbookMvpScreen(
         val next = (pageIndex + delta).coerceIn(0, workbook.pages.lastIndex)
         if (next == pageIndex) return
         pageIndex = next
-        activeStroke = emptyList()
+        activeStroke = null
         message = null
     }
 
     Surface(modifier = modifier.fillMaxSize(), color = Color(0xFFE5E7EB)) {
-        Box(modifier = Modifier.fillMaxSize()) {
+        BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+            val answerPanelBottomPadding = maxHeight * 0.15f
             ScanPageViewer(
                 page = page,
-                inkEnabled = inkEnabled,
-                answers = answers,
-                grades = grades,
+                currentTool = currentTool,
+                penWidth = penWidth,
                 strokes = pageStrokes,
                 activeStroke = activeStroke,
-                onAnswerChange = { fieldKey, value ->
-                    answers = answers + (fieldKey to value)
-                    grades = grades - fieldKey
-                    message = null
-                },
-                onStrokeStart = { point ->
-                    activeStroke = listOf(point)
+                onStrokeStart = { point, tool, width ->
+                    activeStroke = ScanInkStroke(
+                        points = listOf(point),
+                        color = tool.color,
+                        widthFraction = width / ScanReferencePageWidthPx,
+                        kind = tool.kind
+                    )
                 },
                 onStrokeMove = { point ->
-                    if (activeStroke.isNotEmpty()) {
-                        activeStroke = activeStroke + point
+                    activeStroke?.let { stroke ->
+                        activeStroke = stroke.copy(points = stroke.points + point)
                     }
                 },
                 onStrokeEnd = {
-                    if (activeStroke.size > 1) {
-                        val stroke = ScanInkStroke(points = activeStroke)
+                    activeStroke?.takeIf { it.points.size > 1 }?.let { stroke ->
                         strokesByPage = strokesByPage.withUpdatedPageStrokes(page.pageId) { strokes ->
                             strokes + stroke
                         }
                     }
-                    activeStroke = emptyList()
+                    activeStroke = null
+                },
+                onErase = { point ->
+                    strokesByPage = strokesByPage.withUpdatedPageStrokes(page.pageId) { strokes ->
+                        eraseScanStrokes(strokes, point, ScanEraserRadiusFraction)
+                    }
+                    activeStroke = null
                 }
             )
 
@@ -140,38 +165,104 @@ fun ScanWorkbookMvpScreen(
                 position = "${pageIndex + 1}/${workbook.pages.size}",
                 canGoPrevious = pageIndex > 0,
                 canGoNext = pageIndex < workbook.pages.lastIndex,
+                currentTool = currentTool,
+                lastDrawingTool = lastDrawingTool,
+                penWidth = penWidth,
+                toolMenuExpanded = toolMenuExpanded,
+                canUndoInk = pageStrokes.isNotEmpty(),
                 onPrevious = { movePage(-1) },
                 onNext = { movePage(1) },
-                modifier = Modifier.align(Alignment.TopCenter)
-            )
-
-            ScanFloatingActions(
-                inkEnabled = inkEnabled,
-                canUndoInk = pageStrokes.isNotEmpty(),
-                onToggleInk = {
-                    inkEnabled = !inkEnabled
-                    activeStroke = emptyList()
+                onCyclePenWidth = {
+                    penWidth = penWidth.nextScanPenWidth()
+                },
+                onToggleToolMenu = {
+                    if (currentTool.kind == ScanToolKind.Eraser) {
+                        currentTool = lastDrawingTool
+                        toolMenuExpanded = false
+                    } else {
+                        toolMenuExpanded = !toolMenuExpanded
+                    }
+                },
+                onSelectTool = { tool ->
+                    currentTool = tool
+                    if (tool.kind != ScanToolKind.Eraser) {
+                        lastDrawingTool = tool
+                    }
+                    toolMenuExpanded = false
+                },
+                onSelectEraser = {
+                    currentTool = ScanEraserTool
+                    toolMenuExpanded = false
                 },
                 onUndoInk = {
                     strokesByPage = strokesByPage.withUpdatedPageStrokes(page.pageId) { strokes ->
                         strokes.dropLast(1)
                     }
-                    activeStroke = emptyList()
+                    activeStroke = null
                 },
-                onGrade = {
-                    val result = gradePage(page, answers)
-                    grades = grades + result
-                    val correctCount = result.values.count { it }
-                    message = "$correctCount/${result.size} 정답"
+                modifier = Modifier.align(Alignment.TopCenter)
+            )
+
+            ScanAnswerPanel(
+                page = page,
+                expanded = answerPanelExpanded,
+                answers = answers,
+                grades = grades,
+                submittingFields = submittingFields,
+                onToggleExpanded = { answerPanelExpanded = !answerPanelExpanded },
+                onAnswerChange = { fieldKey, value ->
+                    answers = answers + (fieldKey to value)
+                    grades = grades - fieldKey
+                    message = null
                 },
-                modifier = Modifier.align(Alignment.BottomEnd)
+                onSubmitAnswer = { problem, field ->
+                    val submitKey = fieldKey(page, field)
+                    if (submitKey !in submittingFields) {
+                        submittingFields = submittingFields + submitKey
+                        scope.launch {
+                            runCatching {
+                                val dbProblem = container.dao.getProblem(problem.problemId)
+                                    ?: error("등록된 문제가 없습니다.")
+                                val submittedAnswers = problem.answerFields.associate { answerField ->
+                                    answerField.fieldId to answers[fieldKey(page, answerField)].orEmpty()
+                                }
+                                container.submitPracticeAnswerUseCase.submit(
+                                    studentId = "student-demo",
+                                    problem = dbProblem,
+                                    generatedProblemId = null,
+                                    submittedAnswers = submittedAnswers,
+                                    solutionImagePath = null
+                                )
+                            }.onSuccess { result ->
+                                val fieldGrades = result.gradingResult.fieldResults
+                                    .filter { !it.answerFieldId.isNullOrBlank() }
+                                    .associate { fieldResult ->
+                                        "${page.pageId}:${fieldResult.answerFieldId}" to fieldResult.isCorrect
+                                    }
+                                grades = grades + fieldGrades
+                                message = when {
+                                    result.gradingResult.requiresManualReview -> "확인 필요"
+                                    result.gradingResult.isCorrect -> "정답입니다."
+                                    result.autoMoveNext -> "오답입니다."
+                                    else -> "다시 확인해보세요. ${result.remainingTryCount}회 남음"
+                                }
+                            }.onFailure { error ->
+                                message = "제출 실패: ${error.message ?: "알 수 없는 오류"}"
+                            }
+                            submittingFields = submittingFields - submitKey
+                        }
+                    }
+                },
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = answerPanelBottomPadding)
             )
 
             message?.let {
                 Surface(
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
-                        .padding(bottom = 16.dp),
+                        .padding(bottom = answerPanelBottomPadding + if (answerPanelExpanded) 286.dp else 82.dp),
                     color = Color(0xEE111827),
                     shape = RoundedCornerShape(8.dp)
                 ) {
@@ -194,87 +285,99 @@ private fun ScanTopNavigation(
     position: String,
     canGoPrevious: Boolean,
     canGoNext: Boolean,
+    currentTool: ScanDrawingTool,
+    lastDrawingTool: ScanDrawingTool,
+    penWidth: Float,
+    toolMenuExpanded: Boolean,
+    canUndoInk: Boolean,
     onPrevious: () -> Unit,
     onNext: () -> Unit,
+    onCyclePenWidth: () -> Unit,
+    onToggleToolMenu: () -> Unit,
+    onSelectTool: (ScanDrawingTool) -> Unit,
+    onSelectEraser: () -> Unit,
+    onUndoInk: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Row(
+    Box(
         modifier = modifier
             .fillMaxWidth()
             .statusBarsPadding()
-            .padding(horizontal = 8.dp, vertical = 4.dp)
-            .zIndex(4f),
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
-        verticalAlignment = Alignment.CenterVertically
+            .zIndex(4f)
     ) {
-        ScanNavButton(
-            text = "‹",
-            direction = ScanNavDirection.Previous,
-            enabled = canGoPrevious,
-            onClick = onPrevious
-        )
-        ScanLocationLabel(
-            title = title,
-            pageInfo = "${pageNumber}쪽 · $position",
-            modifier = Modifier.weight(1f)
-        )
-        ScanNavButton(
-            text = "›",
-            direction = ScanNavDirection.Next,
-            enabled = canGoNext,
-            onClick = onNext
-        )
-    }
-}
-
-@Composable
-private fun ScanFloatingActions(
-    inkEnabled: Boolean,
-    canUndoInk: Boolean,
-    onToggleInk: () -> Unit,
-    onUndoInk: () -> Unit,
-    onGrade: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Row(
-        modifier = modifier
-            .padding(end = 12.dp, bottom = 14.dp)
-            .zIndex(5f),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        if (inkEnabled && canUndoInk) {
-            ScanRoundButton(
-                label = "↶",
-                selected = false,
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 8.dp, vertical = 4.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            ScanNavButton(
+                text = "‹",
+                direction = ScanNavDirection.Previous,
+                enabled = canGoPrevious,
+                onClick = onPrevious
+            )
+            ScanLocationLabel(
+                title = title,
+                pageInfo = "${pageNumber}쪽 · $position",
+                modifier = Modifier.weight(1f)
+            )
+            ScanPenWidthButton(width = penWidth, onClick = onCyclePenWidth)
+            val visibleTool = if (currentTool.kind == ScanToolKind.Eraser) lastDrawingTool else currentTool
+            ScanToolCircleButton(
+                tool = visibleTool,
+                selected = currentTool.kind != ScanToolKind.Eraser,
+                onClick = onToggleToolMenu
+            )
+            ScanEraserButton(
+                selected = currentTool.kind == ScanToolKind.Eraser,
+                onClick = onSelectEraser
+            )
+            ScanUndoButton(
+                enabled = canUndoInk,
                 onClick = onUndoInk
             )
+            ScanNavButton(
+                text = "›",
+                direction = ScanNavDirection.Next,
+                enabled = canGoNext,
+                onClick = onNext
+            )
         }
-        ScanRoundButton(
-            label = "필",
-            selected = inkEnabled,
-            onClick = onToggleInk
-        )
-        ScanRoundButton(
-            label = "채",
-            selected = true,
-            onClick = onGrade
-        )
+        if (toolMenuExpanded) {
+            Column(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(top = 42.dp, end = 126.dp)
+                    .zIndex(8f),
+                verticalArrangement = Arrangement.spacedBy(7.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                ScanDrawingTools.forEach { tool ->
+                    ScanToolCircleButton(
+                        tool = tool,
+                        selected = currentTool.id == tool.id && currentTool.kind != ScanToolKind.Eraser,
+                        onClick = { onSelectTool(tool) }
+                    )
+                }
+            }
+        }
     }
 }
 
 @Composable
+@OptIn(ExperimentalComposeUiApi::class)
 private fun ScanPageViewer(
     page: ScanPage,
-    inkEnabled: Boolean,
-    answers: Map<String, String>,
-    grades: Map<String, Boolean>,
+    currentTool: ScanDrawingTool,
+    penWidth: Float,
     strokes: List<ScanInkStroke>,
-    activeStroke: List<Offset>,
-    onAnswerChange: (String, String) -> Unit,
-    onStrokeStart: (Offset) -> Unit,
+    activeStroke: ScanInkStroke?,
+    onStrokeStart: (Offset, ScanDrawingTool, Float) -> Unit,
     onStrokeMove: (Offset) -> Unit,
-    onStrokeEnd: () -> Unit
+    onStrokeEnd: () -> Unit,
+    onErase: (Offset) -> Unit
 ) {
     val context = LocalContext.current
     val density = LocalDensity.current
@@ -286,6 +389,8 @@ private fun ScanPageViewer(
     }
     var userScale by remember(page.pageId) { mutableFloatStateOf(1f) }
     var pan by remember(page.pageId) { mutableStateOf(Offset.Zero) }
+    var lastTransformCentroid by remember(page.pageId) { mutableStateOf<Offset?>(null) }
+    var lastTransformSpan by remember(page.pageId) { mutableFloatStateOf(0f) }
 
     BoxWithConstraints(
         modifier = Modifier
@@ -295,7 +400,7 @@ private fun ScanPageViewer(
         val viewportWidthPx = constraints.maxWidth.toFloat().coerceAtLeast(1f)
         val viewportHeightPx = constraints.maxHeight.toFloat().coerceAtLeast(1f)
         val topInsetPx = with(density) { 82.dp.toPx() }
-        val bottomInsetPx = with(density) { 14.dp.toPx() }
+        val bottomInsetPx = with(density) { 104.dp.toPx() }
         val fitScale = viewportWidthPx / page.width.toFloat()
         val basePageWidthPx = page.width * fitScale
         val basePageHeightPx = page.height * fitScale
@@ -303,16 +408,11 @@ private fun ScanPageViewer(
             x = (viewportWidthPx - basePageWidthPx) / 2f,
             y = topInsetPx
         )
-        val pageScale = fitScale * userScale
-        val pageWidthPx = page.width * pageScale
-        val pageHeightPx = page.height * pageScale
-        val pageLeftPx = baseOffset.x + pan.x
-        val pageTopPx = baseOffset.y + pan.y
-        val pageWidthDp = with(density) { pageWidthPx.toDp() }
-        val pageHeightDp = with(density) { pageHeightPx.toDp() }
+        val pageWidthDp = with(density) { basePageWidthPx.toDp() }
+        val pageHeightDp = with(density) { basePageHeightPx.toDp() }
 
         fun clampPan(rawPan: Offset, scale: Float): Offset {
-            val scaledSize = Size(page.width * fitScale * scale, page.height * fitScale * scale)
+            val scaledSize = Size(basePageWidthPx * scale, basePageHeightPx * scale)
             return clampScanPan(
                 pan = rawPan,
                 viewportWidth = viewportWidthPx,
@@ -322,30 +422,67 @@ private fun ScanPageViewer(
             )
         }
 
-        val transformModifier = Modifier.pointerInput(
-            page.pageId,
-            fitScale,
-            userScale,
-            pan,
-            viewportWidthPx,
-            viewportHeightPx
-        ) {
-            detectTransformGestures { centroid, gesturePan, gestureZoom, _ ->
-                focusManager.clearFocus(force = true)
-                val oldScale = userScale
-                val newScale = (oldScale * gestureZoom).coerceIn(MinScanUserScale, MaxScanUserScale)
-                val oldPageScale = fitScale * oldScale
-                val newPageScale = fitScale * newScale
-                val localBefore = Offset(
-                    x = (centroid.x - baseOffset.x - pan.x) / oldPageScale,
-                    y = (centroid.y - baseOffset.y - pan.y) / oldPageScale
-                )
-                val centeredPan = Offset(
-                    x = centroid.x - baseOffset.x - localBefore.x * newPageScale,
-                    y = centroid.y - baseOffset.y - localBefore.y * newPageScale
-                )
-                userScale = newScale
-                pan = clampPan(centeredPan + gesturePan, newScale)
+        fun resetTransformTracking() {
+            lastTransformCentroid = null
+            lastTransformSpan = 0f
+        }
+
+        val transformModifier = Modifier.pointerInteropFilter { event ->
+            if (event.hasStylusLikePointer()) {
+                resetTransformTracking()
+                return@pointerInteropFilter false
+            }
+            val fingerCount = event.fingerPointerCount()
+            if (fingerCount == 0) {
+                resetTransformTracking()
+                return@pointerInteropFilter false
+            }
+            when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN,
+                MotionEvent.ACTION_POINTER_DOWN,
+                MotionEvent.ACTION_MOVE -> {
+                    focusManager.clearFocus(force = true)
+                    val centroid = event.fingerCentroid()
+                    val span = if (fingerCount >= 2) event.fingerSpan(centroid) else 0f
+                    val previousCentroid = lastTransformCentroid
+                    if (previousCentroid != null) {
+                        val panDelta = Offset(
+                            x = centroid.x - previousCentroid.x,
+                            y = centroid.y - previousCentroid.y
+                        )
+                        val oldScale = userScale
+                        val zoom = if (span > 0f && lastTransformSpan > 0f) {
+                            span / lastTransformSpan
+                        } else {
+                            1f
+                        }
+                        val newScale = (oldScale * zoom).coerceIn(MinScanUserScale, MaxScanUserScale)
+                        val nextPan = if (newScale != oldScale) {
+                            val localBefore = Offset(
+                                x = (centroid.x - baseOffset.x - pan.x) / oldScale,
+                                y = (centroid.y - baseOffset.y - pan.y) / oldScale
+                            )
+                            Offset(
+                                x = centroid.x - baseOffset.x - localBefore.x * newScale + panDelta.x,
+                                y = centroid.y - baseOffset.y - localBefore.y * newScale + panDelta.y
+                            )
+                        } else {
+                            Offset(pan.x + panDelta.x, pan.y + panDelta.y)
+                        }
+                        userScale = newScale
+                        pan = clampPan(nextPan, newScale)
+                    }
+                    lastTransformCentroid = centroid
+                    lastTransformSpan = span
+                    true
+                }
+                MotionEvent.ACTION_POINTER_UP,
+                MotionEvent.ACTION_UP,
+                MotionEvent.ACTION_CANCEL -> {
+                    resetTransformTracking()
+                    true
+                }
+                else -> true
             }
         }
 
@@ -356,8 +493,15 @@ private fun ScanPageViewer(
         ) {
             Box(
                 modifier = Modifier
-                    .offset { IntOffset(pageLeftPx.roundToInt(), pageTopPx.roundToInt()) }
+                    .offset { IntOffset(baseOffset.x.roundToInt(), baseOffset.y.roundToInt()) }
                     .size(width = pageWidthDp, height = pageHeightDp)
+                    .graphicsLayer {
+                        scaleX = userScale
+                        scaleY = userScale
+                        translationX = pan.x
+                        translationY = pan.y
+                        transformOrigin = TransformOrigin(0f, 0f)
+                    }
                     .background(Color.White)
             ) {
                 Image(
@@ -369,75 +513,239 @@ private fun ScanPageViewer(
                 Canvas(
                     modifier = Modifier
                         .fillMaxSize()
-                        .then(
-                            if (inkEnabled) {
-                                Modifier.pointerInput(page.pageId, pageWidthPx, pageHeightPx) {
-                                    detectDragGestures(
-                                        onDragStart = { start ->
-                                            normalizedPagePoint(start, pageWidthPx, pageHeightPx)?.let(onStrokeStart)
-                                        },
-                                        onDrag = { change, _ ->
-                                            normalizedPagePoint(change.position, pageWidthPx, pageHeightPx)?.let(onStrokeMove)
-                                            change.consume()
-                                        },
-                                        onDragEnd = onStrokeEnd,
-                                        onDragCancel = onStrokeEnd
-                                    )
-                                }
-                            } else {
-                                Modifier
+                        .pointerInteropFilter { event ->
+                            val pointerIndex = event.actionIndex.coerceAtLeast(0)
+                            if (!event.isStylusLike(pointerIndex)) {
+                                return@pointerInteropFilter false
                             }
-                        )
+                            val point = normalizedPagePoint(
+                                Offset(event.x, event.y),
+                                basePageWidthPx,
+                                basePageHeightPx
+                            ) ?: return@pointerInteropFilter true
+                            when (event.actionMasked) {
+                                MotionEvent.ACTION_DOWN, MotionEvent.ACTION_POINTER_DOWN -> {
+                                    focusManager.clearFocus(force = true)
+                                    if (currentTool.kind == ScanToolKind.Eraser) {
+                                        onErase(point)
+                                    } else {
+                                        onStrokeStart(point, currentTool, penWidth)
+                                    }
+                                    true
+                                }
+                                MotionEvent.ACTION_MOVE -> {
+                                    if (currentTool.kind == ScanToolKind.Eraser) {
+                                        onErase(point)
+                                    } else {
+                                        onStrokeMove(point)
+                                    }
+                                    true
+                                }
+                                MotionEvent.ACTION_UP, MotionEvent.ACTION_POINTER_UP, MotionEvent.ACTION_CANCEL -> {
+                                    onStrokeEnd()
+                                    true
+                                }
+                                else -> true
+                            }
+                        }
                 ) {
-                    page.problems.forEach { problem ->
-                        drawRoundRect(
-                            color = Color(0x662563EB),
-                            topLeft = Offset(problem.problemRect.x * size.width, problem.problemRect.y * size.height),
-                            size = Size(problem.problemRect.width * size.width, problem.problemRect.height * size.height),
-                            style = Stroke(width = 2.2f)
-                        )
-                    }
-                    (strokes + listOfNotNull(activeStroke.takeIf { it.size > 1 }?.let(::ScanInkStroke))).forEach { stroke ->
+                    (strokes + listOfNotNull(activeStroke?.takeIf { it.points.size > 1 })).forEach { stroke ->
                         stroke.points.zipWithNext().forEach { (a, b) ->
                             drawLine(
                                 color = stroke.color,
                                 start = Offset(a.x * size.width, a.y * size.height),
                                 end = Offset(b.x * size.width, b.y * size.height),
-                                strokeWidth = (stroke.widthFraction * size.width).coerceAtLeast(2.4f),
+                                strokeWidth = (stroke.widthFraction * size.width).coerceAtLeast(
+                                    if (stroke.kind == ScanToolKind.Highlighter) 10f else 2.4f
+                                ),
                                 cap = StrokeCap.Round
                             )
                         }
                     }
                 }
-                page.problems.forEach { problem ->
-                    problem.answerFields.forEach { field ->
-                        val key = fieldKey(page, field)
-                        ScanAnswerBox(
-                            field = field,
-                            value = answers[key].orEmpty(),
-                            enabled = !inkEnabled,
-                            grade = grades[key],
-                            onValueChange = { onAnswerChange(key, it) },
-                            modifier = Modifier
-                                .offset {
-                                    IntOffset(
-                                        (field.rect.x * pageWidthPx).roundToInt(),
-                                        (field.rect.y * pageHeightPx).roundToInt()
-                                    )
-                                }
-                                .size(
-                                    width = with(density) {
-                                        max(field.rect.width * pageWidthPx, 52.dp.toPx()).toDp()
-                                    },
-                                    height = with(density) {
-                                        max(field.rect.height * pageHeightPx, 28.dp.toPx()).toDp()
-                                    }
-                                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ScanAnswerPanel(
+    page: ScanPage,
+    expanded: Boolean,
+    answers: Map<String, String>,
+    grades: Map<String, Boolean>,
+    submittingFields: Set<String>,
+    onToggleExpanded: () -> Unit,
+    onAnswerChange: (String, String) -> Unit,
+    onSubmitAnswer: (ScanProblem, ScanAnswerField) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val listState = rememberLazyListState()
+    val rows = remember(page.pageId) {
+        page.problems.flatMap { problem ->
+            problem.answerFields.map { field -> problem to field }
+        }
+    }
+    Surface(
+        modifier = modifier
+            .fillMaxWidth()
+            .navigationBarsPadding()
+            .padding(horizontal = 10.dp, vertical = 8.dp)
+            .zIndex(4f),
+        color = Color(0xF7FFFFFF),
+        shape = RoundedCornerShape(16.dp),
+        border = BorderStroke(1.dp, Color(0x332563EB)),
+        tonalElevation = 4.dp
+    ) {
+        Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp)) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(38.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Surface(
+                    modifier = Modifier
+                        .width(96.dp)
+                        .fillMaxHeight()
+                        .clickable(onClick = onToggleExpanded),
+                    color = Color(0xFFEFF6FF),
+                    shape = RoundedCornerShape(10.dp),
+                    border = BorderStroke(1.dp, Color(0x552563EB))
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Text(
+                            text = if (expanded) "답안 접기" else "답안 열기",
+                            color = Color(0xFF2563EB),
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold
                         )
                     }
                 }
+                Text(
+                    text = "${page.pageNumber}쪽 · ${rows.size}칸",
+                    color = Color(0xFF4B5563),
+                    fontSize = 11.sp,
+                    maxLines = 1
+                )
+            }
+            if (expanded) {
+                BoxWithConstraints(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 260.dp)
+                ) {
+                    LazyColumn(
+                        state = listState,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(end = 8.dp),
+                        verticalArrangement = Arrangement.spacedBy(7.dp)
+                    ) {
+                        items(rows, key = { (problem, field) -> "${problem.problemId}:${field.fieldId}" }) { (problem, field) ->
+                            val key = fieldKey(page, field)
+                            ScanAnswerPanelRow(
+                                problem = problem,
+                                field = field,
+                                value = answers[key].orEmpty(),
+                                grade = grades[key],
+                                enabled = key !in submittingFields,
+                                onValueChange = { onAnswerChange(key, it) },
+                                onSubmit = { onSubmitAnswer(problem, field) }
+                            )
+                        }
+                    }
+                    ScanAnswerScrollbar(
+                        state = listState,
+                        modifier = Modifier.align(Alignment.CenterEnd)
+                    )
+                }
             }
         }
+    }
+}
+
+@Composable
+private fun ScanAnswerPanelRow(
+    problem: ScanProblem,
+    field: ScanAnswerField,
+    value: String,
+    grade: Boolean?,
+    enabled: Boolean,
+    onValueChange: (String) -> Unit,
+    onSubmit: () -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(7.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = problem.label.ifBlank { "문제" },
+            modifier = Modifier.width(54.dp),
+            color = Color(0xFF374151),
+            fontSize = 11.sp,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+        ScanAnswerBox(
+            field = field,
+            value = value,
+            enabled = enabled,
+            grade = grade,
+            onValueChange = onValueChange,
+            modifier = Modifier
+                .weight(1f)
+                .height(58.dp)
+        )
+        ScanSubmitButton(
+            enabled = enabled,
+            grade = grade,
+            onClick = onSubmit,
+            modifier = Modifier.size(width = 52.dp, height = 58.dp)
+        )
+    }
+}
+
+@Composable
+private fun ScanAnswerScrollbar(
+    state: androidx.compose.foundation.lazy.LazyListState,
+    modifier: Modifier = Modifier
+) {
+    val layoutInfo = state.layoutInfo
+    val totalItems = layoutInfo.totalItemsCount
+    val visibleItems = layoutInfo.visibleItemsInfo.size
+    val canScroll = state.canScrollBackward || state.canScrollForward
+    if (!canScroll || totalItems == 0 || visibleItems == 0) return
+
+    BoxWithConstraints(
+        modifier = modifier
+            .width(4.dp)
+            .fillMaxHeight()
+    ) {
+        val trackHeight = maxHeight
+        val visibleFraction = (visibleItems.toFloat() / totalItems.toFloat()).coerceIn(0.15f, 1f)
+        val thumbHeight = trackHeight * visibleFraction
+        val maxFirst = (totalItems - visibleItems).coerceAtLeast(1)
+        val progress = (state.firstVisibleItemIndex.toFloat() / maxFirst.toFloat()).coerceIn(0f, 1f)
+        val thumbOffset = (trackHeight - thumbHeight) * progress
+
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .clip(RoundedCornerShape(99.dp))
+                .background(Color(0x112563EB))
+        )
+        Box(
+            modifier = Modifier
+                .offset(y = thumbOffset)
+                .fillMaxWidth()
+                .height(thumbHeight)
+                .clip(RoundedCornerShape(99.dp))
+                .background(Color(0x882563EB))
+        )
     }
 }
 
@@ -471,7 +779,7 @@ private fun ScanAnswerBox(
             Text(
                 text = field.label,
                 color = borderColor,
-                fontSize = 10.sp,
+                fontSize = 13.sp,
                 fontWeight = FontWeight.Bold,
                 maxLines = 1
             )
@@ -482,10 +790,161 @@ private fun ScanAnswerBox(
                 singleLine = true,
                 textStyle = TextStyle(
                     color = Color(0xFF111827),
-                    fontSize = 12.sp,
+                    fontSize = 22.sp,
                     fontWeight = FontWeight.Bold
                 ),
                 modifier = Modifier.weight(1f)
+            )
+        }
+    }
+}
+
+@Composable
+private fun ScanSubmitButton(
+    enabled: Boolean,
+    grade: Boolean?,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val color = when (grade) {
+        true -> Color(0xFF2563EB)
+        false -> Color(0xFFDC2626)
+        null -> Color(0xFF374151)
+    }
+    OutlinedButton(
+        onClick = onClick,
+        enabled = enabled,
+        modifier = modifier.defaultMinSize(minWidth = 0.dp, minHeight = 0.dp),
+        shape = RoundedCornerShape(7.dp),
+        border = BorderStroke(1.2.dp, color),
+        colors = ButtonDefaults.outlinedButtonColors(
+            containerColor = Color(0xEEFFFFFF),
+            contentColor = color,
+            disabledContainerColor = Color(0xAAFFFFFF),
+            disabledContentColor = Color(0x886B7280)
+        ),
+        contentPadding = PaddingValues(0.dp)
+    ) {
+        Text("✓", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+    }
+}
+
+@Composable
+private fun ScanPenWidthButton(
+    width: Float,
+    onClick: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .size(30.dp)
+            .semantics { contentDescription = "펜 굵기 ${width.toInt()}" }
+            .clickable(onClick = onClick)
+            .background(Color.White, CircleShape)
+            .border(1.dp, Color(0xFFE5E7EB), CircleShape)
+            .padding(4.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            drawLine(
+                color = Color(0xFF111827),
+                start = Offset(4.dp.toPx(), size.height / 2f),
+                end = Offset(size.width - 4.dp.toPx(), size.height / 2f),
+                strokeWidth = width.coerceIn(3f, 11f),
+                cap = StrokeCap.Round
+            )
+        }
+    }
+}
+
+@Composable
+private fun ScanToolCircleButton(
+    tool: ScanDrawingTool,
+    selected: Boolean,
+    onClick: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .size(30.dp)
+            .semantics { contentDescription = tool.label }
+            .clickable(onClick = onClick)
+            .border(
+                width = if (selected) 3.dp else 1.dp,
+                color = if (selected) MaterialTheme.colorScheme.primary else Color(0xFFE5E7EB),
+                shape = CircleShape
+            )
+            .padding(4.dp)
+            .background(tool.color, CircleShape)
+    )
+}
+
+@Composable
+private fun ScanEraserButton(
+    selected: Boolean,
+    onClick: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .size(30.dp)
+            .semantics { contentDescription = ScanEraserTool.label }
+            .clickable(onClick = onClick)
+            .background(Color.White, RoundedCornerShape(19.dp))
+            .border(
+                width = if (selected) 3.dp else 1.dp,
+                color = if (selected) MaterialTheme.colorScheme.primary else Color(0xFFE5E7EB),
+                shape = RoundedCornerShape(19.dp)
+            ),
+        contentAlignment = Alignment.Center
+    ) {
+        Canvas(modifier = Modifier.size(20.dp)) {
+            rotate(degrees = -28f) {
+                val eraserSize = Size(18.dp.toPx(), 12.dp.toPx())
+                val topLeft = Offset(3.dp.toPx(), 6.dp.toPx())
+                drawRoundRect(
+                    color = Color(0xFFFFE4E6),
+                    topLeft = topLeft,
+                    size = eraserSize,
+                    cornerRadius = CornerRadius(3.dp.toPx(), 3.dp.toPx())
+                )
+                drawLine(
+                    color = Color(0xFF9CA3AF),
+                    start = Offset(topLeft.x + 7.dp.toPx(), topLeft.y),
+                    end = Offset(topLeft.x + 7.dp.toPx(), topLeft.y + eraserSize.height),
+                    strokeWidth = 1.2.dp.toPx()
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ScanUndoButton(
+    enabled: Boolean,
+    onClick: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .size(30.dp)
+            .semantics { contentDescription = "뒤로가기" }
+            .clickable(enabled = enabled, onClick = onClick)
+            .background(Color.White, RoundedCornerShape(19.dp))
+            .border(1.dp, Color(0xFFE5E7EB), RoundedCornerShape(19.dp)),
+        contentAlignment = Alignment.Center
+    ) {
+        Canvas(modifier = Modifier.size(20.dp)) {
+            val color = if (enabled) Color(0xFF374151) else Color(0xFFCBD5E1)
+            val stroke = 2.2.dp.toPx()
+            val centerY = size.height * 0.52f
+            val leftX = size.width * 0.22f
+            val rightX = size.width * 0.78f
+            drawLine(color, Offset(rightX, centerY), Offset(leftX, centerY), stroke, cap = StrokeCap.Round)
+            drawLine(color, Offset(leftX, centerY), Offset(leftX + 6.dp.toPx(), centerY - 5.dp.toPx()), stroke, cap = StrokeCap.Round)
+            drawLine(color, Offset(leftX, centerY), Offset(leftX + 6.dp.toPx(), centerY + 5.dp.toPx()), stroke, cap = StrokeCap.Round)
+            drawLine(
+                color = color.copy(alpha = 0.55f),
+                start = Offset(rightX, centerY),
+                end = Offset(rightX, size.height * 0.30f),
+                strokeWidth = stroke,
+                cap = StrokeCap.Round
             )
         }
     }
@@ -601,28 +1060,7 @@ private fun ScanNavButton(
     }
 }
 
-@Composable
-private fun ScanRoundButton(
-    label: String,
-    selected: Boolean,
-    onClick: () -> Unit
-) {
-    OutlinedButton(
-        onClick = onClick,
-        modifier = Modifier.size(48.dp),
-        shape = CircleShape,
-        border = BorderStroke(1.5.dp, if (selected) MaterialTheme.colorScheme.primary else Color(0xFF7C7585)),
-        colors = ButtonDefaults.outlinedButtonColors(
-            containerColor = if (selected) Color(0xF2FFFFFF) else Color(0xEFFFFFFF),
-            contentColor = if (selected) MaterialTheme.colorScheme.primary else Color(0xFF4B5563)
-        ),
-        contentPadding = PaddingValues(0.dp)
-    ) {
-        Text(label, style = MaterialTheme.typography.labelSmall, maxLines = 1, fontWeight = FontWeight.Bold)
-    }
-}
-
-private fun loadScanWorkbookMvp(context: Context): ScanWorkbook {
+private fun loadScanWorkbookMvp(context: Context, workbookId: String): ScanWorkbook {
     val root = context.assets.open("scan_mvp/workbook.json").use { input ->
         JSONObject(input.bufferedReader(Charsets.UTF_8).readText())
     }
@@ -630,7 +1068,9 @@ private fun loadScanWorkbookMvp(context: Context): ScanWorkbook {
         "scan_mvp/workbook.json은 스캔형 문제집 JSON이어야 합니다."
     }
     val workbookObject = root.optJSONObject("workbook")
+    val manifestWorkbookId = workbookObject?.optString("workbookId").orEmpty()
     return ScanWorkbook(
+        workbookId = manifestWorkbookId.ifBlank { workbookId },
         title = root.optString("title")
             .ifBlank { workbookObject?.optString("title").orEmpty() }
             .ifBlank { "스캔 문제집" },
@@ -713,6 +1153,107 @@ private fun Map<String, List<ScanInkStroke>>.withUpdatedPageStrokes(
     return this + (pageId to update(this[pageId].orEmpty()))
 }
 
+private fun eraseScanStrokes(
+    strokes: List<ScanInkStroke>,
+    point: Offset,
+    radius: Float
+): List<ScanInkStroke> {
+    val updated = mutableListOf<ScanInkStroke>()
+    strokes.forEach { stroke ->
+        var segment = mutableListOf<Offset>()
+        stroke.points.forEachIndexed { index, strokePoint ->
+            val previous = stroke.points.getOrNull(index - 1)
+            val shouldErase = distance(strokePoint, point) <= radius ||
+                (previous != null && distanceToSegment(point, previous, strokePoint) <= radius)
+            if (shouldErase) {
+                if (segment.size > 1) {
+                    updated += stroke.copy(points = segment)
+                }
+                segment = mutableListOf()
+            } else {
+                segment += strokePoint
+            }
+        }
+        if (segment.size > 1) {
+            updated += stroke.copy(points = segment)
+        }
+    }
+    return updated
+}
+
+private fun distance(a: Offset, b: Offset): Float {
+    val dx = a.x - b.x
+    val dy = a.y - b.y
+    return sqrt(dx * dx + dy * dy)
+}
+
+private fun distanceToSegment(point: Offset, a: Offset, b: Offset): Float {
+    val dx = b.x - a.x
+    val dy = b.y - a.y
+    if (dx == 0f && dy == 0f) return distance(point, a)
+    val t = (((point.x - a.x) * dx + (point.y - a.y) * dy) / (dx * dx + dy * dy)).coerceIn(0f, 1f)
+    return distance(point, Offset(a.x + t * dx, a.y + t * dy))
+}
+
+private fun MotionEvent.isStylusLike(pointerIndex: Int): Boolean {
+    if (pointerIndex !in 0 until pointerCount) return false
+    return when (getToolType(pointerIndex)) {
+        MotionEvent.TOOL_TYPE_STYLUS,
+        MotionEvent.TOOL_TYPE_ERASER -> true
+        else -> false
+    }
+}
+
+private fun MotionEvent.hasStylusLikePointer(): Boolean {
+    for (index in 0 until pointerCount) {
+        if (isStylusLike(index)) return true
+    }
+    return false
+}
+
+private fun MotionEvent.fingerPointerCount(): Int {
+    var count = 0
+    for (index in 0 until pointerCount) {
+        if (getToolType(index) == MotionEvent.TOOL_TYPE_FINGER) count += 1
+    }
+    return count
+}
+
+private fun MotionEvent.fingerCentroid(): Offset {
+    var x = 0f
+    var y = 0f
+    var count = 0
+    for (index in 0 until pointerCount) {
+        if (getToolType(index) == MotionEvent.TOOL_TYPE_FINGER) {
+            x += getX(index)
+            y += getY(index)
+            count += 1
+        }
+    }
+    return if (count == 0) Offset.Zero else Offset(x / count, y / count)
+}
+
+private fun MotionEvent.fingerSpan(centroid: Offset): Float {
+    var total = 0f
+    var count = 0
+    for (index in 0 until pointerCount) {
+        if (getToolType(index) == MotionEvent.TOOL_TYPE_FINGER) {
+            total += distance(Offset(getX(index), getY(index)), centroid)
+            count += 1
+        }
+    }
+    return if (count == 0) 0f else total / count
+}
+
+private fun Float.nextScanPenWidth(): Float {
+    val index = ScanPenWidthOptions.indexOfFirst { it == this }
+    return if (index == -1 || index == ScanPenWidthOptions.lastIndex) {
+        ScanPenWidthOptions.first()
+    } else {
+        ScanPenWidthOptions[index + 1]
+    }
+}
+
 private fun JSONObject.toScanRect(): ScanRect {
     return ScanRect(
         x = optDouble("x").toFloat(),
@@ -730,6 +1271,29 @@ private enum class ScanNavDirection {
     Previous,
     Next
 }
+
+private enum class ScanToolKind {
+    Pen,
+    Highlighter,
+    Eraser
+}
+
+private data class ScanDrawingTool(
+    val id: String,
+    val label: String,
+    val color: Color,
+    val kind: ScanToolKind
+)
+
+private val ScanDrawingTools = listOf(
+    ScanDrawingTool("black", "검정 펜", Color(0xFF111827), ScanToolKind.Pen),
+    ScanDrawingTool("red", "빨강 펜", Color(0xFFDC2626), ScanToolKind.Pen),
+    ScanDrawingTool("blue", "파랑 펜", Color(0xFF2563EB), ScanToolKind.Pen),
+    ScanDrawingTool("highlight_yellow", "노랑 형광펜", Color(0x44FFD400), ScanToolKind.Highlighter)
+)
+
+private val ScanEraserTool = ScanDrawingTool("eraser", "영역 지우개", Color(0xFF6B7280), ScanToolKind.Eraser)
+private val ScanPenWidthOptions = listOf(3f, 5f, 8f, 11f)
 
 private val PreviousScanNavShape = GenericShape { size, _ ->
     moveTo(0f, size.height / 2f)
@@ -750,6 +1314,7 @@ private val NextScanNavShape = GenericShape { size, _ ->
 }
 
 private data class ScanWorkbook(
+    val workbookId: String,
     val title: String,
     val pages: List<ScanPage>
 )
@@ -787,8 +1352,11 @@ private data class ScanRect(
 private data class ScanInkStroke(
     val points: List<Offset>,
     val color: Color = Color(0xFF111827),
-    val widthFraction: Float = 0.0042f
+    val widthFraction: Float = 0.0042f,
+    val kind: ScanToolKind = ScanToolKind.Pen
 )
 
 private const val MinScanUserScale = 0.45f
 private const val MaxScanUserScale = 8f
+private const val ScanReferencePageWidthPx = 720f
+private const val ScanEraserRadiusFraction = 0.026f

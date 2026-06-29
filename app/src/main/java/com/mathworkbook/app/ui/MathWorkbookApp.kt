@@ -58,8 +58,7 @@ import com.mathworkbook.app.ui.skin.SkinAssetImage
 
 private enum class RootTab(val label: String) {
     Dashboard("진도판"),
-    Problem("문제"),
-    Scan("스캔")
+    Problem("문제")
 }
 
 private enum class ProblemMode {
@@ -91,6 +90,7 @@ fun MathWorkbookApp(container: AppContainer) {
     var currentWorkbookId by remember { mutableStateOf<String?>(null) }
     var currentChapterId by remember { mutableStateOf<String?>(null) }
     var currentProblemId by remember { mutableStateOf<String?>(null) }
+    var activeScanWorkbookId by remember { mutableStateOf<String?>(null) }
     var examLaunchKey by remember { mutableIntStateOf(0) }
     var questionTextSizeSp by remember {
         mutableIntStateOf(container.appPreferences.getInt(PREF_PROBLEM_TEXT_SIZE_SP, DEFAULT_PROBLEM_TEXT_SIZE_SP))
@@ -106,6 +106,7 @@ fun MathWorkbookApp(container: AppContainer) {
         pendingPracticeChapterId = attempt.chapterId
         pendingPracticeProblemId = attempt.problemId
         pendingPracticeAttemptId = attempt.attemptId
+        activeScanWorkbookId = null
         problemMode = ProblemMode.Practice
         selectedTab = RootTab.Problem
         activeMasterTool = null
@@ -134,110 +135,118 @@ fun MathWorkbookApp(container: AppContainer) {
         val masterViewModel: MasterViewModel = viewModel(factory = MasterViewModelFactory(container))
         Box(modifier = Modifier.fillMaxSize()) {
             Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-                Column(modifier = Modifier.fillMaxSize()) {
-                    when (selectedTab) {
-                        RootTab.Dashboard -> {
-                            val viewModel: DashboardViewModel = viewModel(
-                                factory = DashboardViewModelFactory(container)
-                            )
-                            DashboardScreen(
-                                viewModel = viewModel,
-                                isMasterMode = isMasterMode,
-                                refreshKey = dashboardRefreshKey,
-                                focusedWorkbookId = currentWorkbookId,
-                                focusedChapterId = currentChapterId,
-                                focusedProblemId = currentProblemId,
-                                onOpenPracticeChapter = { workbookId, chapterId ->
-                                    pendingPracticeWorkbookId = workbookId
-                                    pendingPracticeChapterId = chapterId
-                                    pendingPracticeProblemId = null
-                                    pendingPracticeAttemptId = null
-                                    problemMode = ProblemMode.Practice
-                                    selectedTab = RootTab.Problem
-                                },
-                                onOpenMasterProblem = { workbookId, chapterId, problemId ->
-                                    pendingPracticeWorkbookId = workbookId
-                                    pendingPracticeChapterId = chapterId
-                                    pendingPracticeProblemId = problemId
-                                    pendingPracticeAttemptId = null
-                                    problemMode = ProblemMode.Practice
-                                    selectedTab = RootTab.Problem
-                                },
-                                modifier = Modifier.weight(1f)
-                            )
-                        }
-                        RootTab.Problem -> {
-                            when (problemMode) {
-                                ProblemMode.Practice -> {
-                                    val viewModel: PracticeViewModel = viewModel(
-                                        factory = PracticeViewModelFactory(container)
-                                    )
-                                    PracticeScreen(
-                                        viewModel = viewModel,
-                                        isMasterMode = isMasterMode,
-                                        questionTextSizeSp = questionTextSizeSp,
-                                        initialWorkbookId = pendingPracticeWorkbookId,
-                                        initialChapterId = pendingPracticeChapterId,
-                                        initialProblemId = pendingPracticeProblemId,
-                                        initialAttemptId = pendingPracticeAttemptId,
-                                        onProblemLocationChanged = { workbookId, chapterId, problemId ->
-                                            currentWorkbookId = workbookId
-                                            currentChapterId = chapterId
-                                            currentProblemId = problemId
-                                        },
-                                        onOpenProgress = {
-                                            selectedTab = RootTab.Dashboard
-                                            activeMasterTool = null
-                                            toolsExpanded = false
-                                        },
-                                        onInitialChapterHandled = {
-                                            pendingPracticeWorkbookId = null
-                                            pendingPracticeChapterId = null
-                                            pendingPracticeProblemId = null
-                                            pendingPracticeAttemptId = null
-                                        },
-                                        modifier = Modifier.weight(1f)
-                                    )
-                                }
-                                ProblemMode.Exam -> {
-                                    val viewModel: ExamViewModel = viewModel(
-                                        key = "exam-$examLaunchKey",
-                                        factory = ExamViewModelFactory(container)
-                                    )
-                                    ExamScreen(
-                                        viewModel = viewModel,
-                                        isMasterMode = isMasterMode,
-                                        questionTextSizeSp = questionTextSizeSp,
-                                        modifier = Modifier.weight(1f)
-                                    )
+                if (selectedTab == RootTab.Problem && activeScanWorkbookId != null) {
+                    ScanWorkbookMvpScreen(
+                        container = container,
+                        workbookId = activeScanWorkbookId.orEmpty(),
+                        modifier = Modifier.fillMaxSize()
+                    )
+                } else {
+                    Column(modifier = Modifier.fillMaxSize()) {
+                        when (selectedTab) {
+                            RootTab.Dashboard -> {
+                                val viewModel: DashboardViewModel = viewModel(
+                                    factory = DashboardViewModelFactory(container)
+                                )
+                                DashboardScreen(
+                                    viewModel = viewModel,
+                                    isMasterMode = isMasterMode,
+                                    refreshKey = dashboardRefreshKey,
+                                    focusedWorkbookId = currentWorkbookId,
+                                    focusedChapterId = currentChapterId,
+                                    focusedProblemId = currentProblemId,
+                                    onOpenPracticeChapter = { workbookId, chapterId ->
+                                        pendingPracticeWorkbookId = workbookId
+                                        pendingPracticeChapterId = chapterId
+                                        pendingPracticeProblemId = null
+                                        pendingPracticeAttemptId = null
+                                        activeScanWorkbookId = null
+                                        problemMode = ProblemMode.Practice
+                                        selectedTab = RootTab.Problem
+                                    },
+                                    onOpenMasterProblem = { workbookId, chapterId, problemId ->
+                                        pendingPracticeWorkbookId = workbookId
+                                        pendingPracticeChapterId = chapterId
+                                        pendingPracticeProblemId = problemId
+                                        pendingPracticeAttemptId = null
+                                        activeScanWorkbookId = null
+                                        problemMode = ProblemMode.Practice
+                                        selectedTab = RootTab.Problem
+                                    },
+                                    onOpenScanWorkbook = { workbookId ->
+                                        pendingPracticeWorkbookId = null
+                                        pendingPracticeChapterId = null
+                                        pendingPracticeProblemId = null
+                                        pendingPracticeAttemptId = null
+                                        activeScanWorkbookId = workbookId
+                                        problemMode = ProblemMode.Practice
+                                        selectedTab = RootTab.Problem
+                                    },
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+                            RootTab.Problem -> {
+                                when (problemMode) {
+                                    ProblemMode.Practice -> {
+                                        val viewModel: PracticeViewModel = viewModel(
+                                            factory = PracticeViewModelFactory(container)
+                                        )
+                                        PracticeScreen(
+                                            viewModel = viewModel,
+                                            isMasterMode = isMasterMode,
+                                            questionTextSizeSp = questionTextSizeSp,
+                                            initialWorkbookId = pendingPracticeWorkbookId,
+                                            initialChapterId = pendingPracticeChapterId,
+                                            initialProblemId = pendingPracticeProblemId,
+                                            initialAttemptId = pendingPracticeAttemptId,
+                                            onProblemLocationChanged = { workbookId, chapterId, problemId ->
+                                                currentWorkbookId = workbookId
+                                                currentChapterId = chapterId
+                                                currentProblemId = problemId
+                                            },
+                                            onOpenProgress = {
+                                                selectedTab = RootTab.Dashboard
+                                                activeMasterTool = null
+                                                toolsExpanded = false
+                                            },
+                                            onInitialChapterHandled = {
+                                                pendingPracticeWorkbookId = null
+                                                pendingPracticeChapterId = null
+                                                pendingPracticeProblemId = null
+                                                pendingPracticeAttemptId = null
+                                            },
+                                            modifier = Modifier.weight(1f)
+                                        )
+                                    }
+                                    ProblemMode.Exam -> {
+                                        val viewModel: ExamViewModel = viewModel(
+                                            key = "exam-$examLaunchKey",
+                                            factory = ExamViewModelFactory(container)
+                                        )
+                                        ExamScreen(
+                                            viewModel = viewModel,
+                                            isMasterMode = isMasterMode,
+                                            questionTextSizeSp = questionTextSizeSp,
+                                            modifier = Modifier.weight(1f)
+                                        )
+                                    }
                                 }
                             }
                         }
-                        RootTab.Scan -> {
-                            ScanWorkbookMvpScreen(
-                                modifier = Modifier.weight(1f)
-                            )
-                        }
-                    }
 
-                    BottomMenu(
-                        selectedTab = selectedTab,
-                        isMasterMode = isMasterMode,
-                        toolsExpanded = toolsExpanded,
-                        onSelectTab = { tab ->
-                            selectedTab = tab
-                            activeMasterTool = null
-                            toolsExpanded = false
-                        },
-                        onToggleTools = {
-                            toolsExpanded = !toolsExpanded
-                        },
-                        onSelectTool = { tool ->
-                            activeMasterTool = tool
-                            toolsExpanded = false
-                        },
-                        onToggleMasterMode = ::toggleMasterMode
-                    )
+                        BottomMenu(
+                            isMasterMode = isMasterMode,
+                            toolsExpanded = toolsExpanded,
+                            onToggleTools = {
+                                toolsExpanded = !toolsExpanded
+                            },
+                            onSelectTool = { tool ->
+                                activeMasterTool = tool
+                                toolsExpanded = false
+                            },
+                            onToggleMasterMode = ::toggleMasterMode
+                        )
+                    }
                 }
             }
 
@@ -251,6 +260,7 @@ fun MathWorkbookApp(container: AppContainer) {
                 onOpenAttempt = ::openAttempt,
                 onStartExamMode = {
                     isMasterMode = false
+                    activeScanWorkbookId = null
                     problemMode = ProblemMode.Exam
                     examLaunchKey += 1
                     selectedTab = RootTab.Problem
@@ -316,10 +326,8 @@ private const val MAX_PROBLEM_TEXT_SIZE_SP = 36
 
 @Composable
 private fun BottomMenu(
-    selectedTab: RootTab,
     isMasterMode: Boolean,
     toolsExpanded: Boolean,
-    onSelectTab: (RootTab) -> Unit,
     onToggleTools: () -> Unit,
     onSelectTool: (MasterToolAction) -> Unit,
     onToggleMasterMode: () -> Unit
@@ -338,15 +346,6 @@ private fun BottomMenu(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                RoundToolButton("진", selected = selectedTab == RootTab.Dashboard) {
-                    onSelectTab(RootTab.Dashboard)
-                }
-                RoundToolButton("문", selected = selectedTab == RootTab.Problem) {
-                    onSelectTab(RootTab.Problem)
-                }
-                RoundToolButton("스", selected = selectedTab == RootTab.Scan) {
-                    onSelectTab(RootTab.Scan)
-                }
                 Spacer(modifier = Modifier.weight(1f))
                 if (isMasterMode) {
                     if (toolsExpanded) {

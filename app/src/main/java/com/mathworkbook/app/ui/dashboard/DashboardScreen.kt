@@ -51,6 +51,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mathworkbook.app.core.domain.FinalStatus
+import com.mathworkbook.app.core.files.isScanWorkbookId
 import com.mathworkbook.app.ui.skin.LocalWorkbookSkin
 import com.mathworkbook.app.ui.skin.SkinAssetImage
 
@@ -64,6 +65,7 @@ fun DashboardScreen(
     focusedProblemId: String? = null,
     onOpenPracticeChapter: (workbookId: String, chapterId: String) -> Unit = { _, _ -> },
     onOpenMasterProblem: (workbookId: String, chapterId: String, problemId: String) -> Unit = { _, _, _ -> },
+    onOpenScanWorkbook: (workbookId: String) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -115,7 +117,14 @@ fun DashboardScreen(
                                 WorkbookCard(
                                     summary = summary,
                                     isMasterMode = isMasterMode,
-                                    onClick = { viewModel.selectWorkbook(summary.workbook.workbookId) },
+                                    onClick = {
+                                        val workbookId = summary.workbook.workbookId
+                                        if (isScanWorkbookId(workbookId)) {
+                                            onOpenScanWorkbook(workbookId)
+                                        } else {
+                                            viewModel.selectWorkbook(workbookId)
+                                        }
+                                    },
                                     onLongClick = if (isMasterMode) {
                                         { workbookToDelete = summary }
                                     } else {
